@@ -1,0 +1,14 @@
+{
+  "name": "Pixel Sixteen",
+  "short_name": "Pixel Sixteen",
+  "description": "A 16x16 pixel art editor.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#EAEFEE",
+  "theme_color": "#EAEFEE",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
