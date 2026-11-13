@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pixel Sixteen">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EAEFEE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1514" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Card Crop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap">
+<style>
+/* Layout: square workspace with the card outline on the left, settings on the right; stacks below 860px. */
+:root {
+  color-scheme: light;
+  --bg: #EAEFEE;
+  --surface: #FFFFFF;
+  --surface-2: #F2F6F5;
+  --fg: #13201E;
+  --muted: #52625F;
+  --line: #C9D5D2;
+  --accent: #0B7F82;
+  --accent-fg: #FFFFFF;
+  --accent-soft: #D6EEEE;
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-px: "Silkscreen", "Courier New", ui-monospace, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1514; --surface: #172220; --surface-2: #1E2C29; --fg: #E6EFED; --muted: #92A6A3;
+    --line: #2E403D; --accent: #3FC3C6; --accent-fg: #062423; --accent-soft: #14393A; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1514; --surface: #172220; --surface-2: #1E2C29; --fg: #E6EFED; --muted: #92A6A3;
+  --line: #2E403D; --accent: #3FC3C6; --accent-fg: #062423; --accent-soft: #14393A; color-scheme: dark;
+}
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.45 var(--font-ui);
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+  padding-block: 14px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input { font: inherit; color: inherit; }
+button { touch-action: manipulation; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 308px; gap: 16px 20px; align-items: start; }
+header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font: 700 22px/1 var(--font-px); letter-spacing: 0.06em; text-transform: uppercase; }
+.nav { margin-left: auto; color: var(--accent); font-weight: 600; text-decoration: none; padding: 6px 2px; }
+.nav:hover { text-decoration: underline; }
+
+.stage { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.work-wrap {
+  width: min(100%, 720px);
+  padding: 8px; background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: var(--radius);
+}
+#work {
+  display: block; width: 100%; aspect-ratio: 1; max-width: 100%;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  cursor: grab; border-radius: 4px;
+}
+#work:active { cursor: grabbing; }
+.hint { margin: 0; color: var(--muted); font-size: 13px; }
+.dim { margin: 0; font: 400 13px/1.3 var(--font-px); letter-spacing: 0.06em; color: var(--muted); }
+
+.panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card h2 { margin: 0; font: 700 12px/1 var(--font-px); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.seg { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 6px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 6px 8px; min-width: 0;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; line-height: 1.1; text-align: center;
+}
+.btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.primary { min-height: 50px; border-radius: var(--radius); background: var(--accent); color: var(--accent-fg); border: 0; font-weight: 600; font-size: 16px; }
+.primary:disabled { opacity: 0.5; cursor: default; }
+.quiet { min-height: 44px; border-radius: var(--radius); background: transparent; border: 1.5px solid var(--line); font-weight: 500; font-size: 14px; }
+.quiet[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider-row label { width: 44px; flex: none; font-size: 12px; color: var(--muted); }
+.slider-row input[type="range"] { flex: 1; min-width: 0; height: 28px; margin: 0; accent-color: var(--accent); touch-action: pan-y; }
+.slider-row output { width: 48px; text-align: right; font: 400 13px/1 var(--font-px); color: var(--muted); }
+.sub { margin: 0; font-size: 12px; color: var(--muted); }
+.toast { margin: 0; min-height: 1.4em; font-size: 13px; color: var(--muted); }
+
+.result { grid-column: 1 / -1; }
+.result-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.result-img {
+  display: flex; justify-content: center; align-items: center; padding: 16px; border-radius: 8px;
+  background-color: #F6F8F8;
+  background-image: conic-gradient(#D3DAD9 25%, transparent 0 50%, #D3DAD9 0 75%, transparent 0);
+  background-size: 16px 16px;
+}
+.result-img img { display: block; max-width: 100%; max-height: 420px; height: auto; -webkit-touch-callout: default; }
+.result-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stale { margin: 0; font-size: 13px; color: #C0392B; }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .work-wrap { width: 100%; }
+  .result-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .btn:active:not(:disabled) { transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Card Crop</h1>
+    <a class="nav" href="index.html">&larr; Pixel editor</a>
+  </header>
+
+  <main class="stage">
+    <div class="work-wrap">
+      <canvas id="work" tabindex="0" role="img" aria-label="Crop workspace. Drag to move the picture, pinch or scroll to zoom, arrow keys nudge."></canvas>
+    </div>
+    <p class="dim" id="dims"></p>
+    <p class="hint" id="hint">Add a picture, then drag it into place. Pinch or scroll to zoom.</p>
+  </main>
+
+  <aside class="panel">
+    <section class="card" aria-label="Picture">
+      <h2>Picture</h2>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button class="quiet" type="button" id="pick">Add picture</button>
+      <div class="slider-row"><label for="zoom">Zoom</label><input type="range" id="zoom" min="0" max="1000" value="0" disabled><output id="zoom-out" for="zoom">100%</output></div>
+      <div class="seg" style="--n:4">
+        <button class="btn" type="button" id="fill" disabled>Fill</button>
+        <button class="btn" type="button" id="fit" disabled>Fit</button>
+        <button class="btn" type="button" id="rot-l" disabled aria-label="Rotate picture left">&#x21BA; 90</button>
+        <button class="btn" type="button" id="rot-r" disabled aria-label="Rotate picture right">90 &#x21BB;</button>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Frame">
+      <h2>Frame</h2>
+      <div class="seg" role="group" aria-label="Frame size">
+        <button class="btn" type="button" data-frame="card" aria-pressed="true">Credit card</button>
+        <button class="btn" type="button" data-frame="ol202" aria-pressed="false">OL202</button>
+      </div>
+      <div class="seg" role="group" aria-label="Orientation">
+        <button class="btn" type="button" data-orient="landscape" aria-pressed="true">Landscape</button>
+        <button class="btn" type="button" data-orient="portrait" aria-pressed="false">Portrait</button>
+      </div>
+      <button class="quiet" type="button" id="round" aria-pressed="true">Rounded corners: on</button>
+      <button class="quiet" type="button" id="ghost" aria-pressed="true">Faded picture outside: on</button>
+    </section>
+
+    <section class="card" aria-label="Export">
+      <h2>Export</h2>
+      <div class="seg" style="--n:3" role="group" aria-label="Print resolution">
+        <button class="btn" type="button" data-dpi="150" aria-pressed="false">150 dpi</button>
+        <button class="btn" type="button" data-dpi="300" aria-pressed="true">300 dpi</button>
+        <button class="btn" type="button" data-dpi="600" aria-pressed="false">600 dpi</button>
+      </div>
+      <button class="primary" type="button" id="crop" disabled>Crop</button>
+      <p class="toast" id="note" role="status" aria-live="polite">Everything outside the outline becomes transparent.</p>
+    </section>
+  </aside>
+
+  <section class="card result" id="result" aria-label="Cropped picture" hidden>
+    <h2>Cropped picture</h2>
+    <div class="result-body">
+      <div class="result-img"><img id="res-img" alt="Cropped result"></div>
+      <div class="result-side">
+        <p class="dim" id="res-info"></p>
+        <p class="stale" id="stale" hidden>The picture or frame changed. Tap Crop again to update this.</p>
+        <button class="primary" type="button" id="save">Save PNG</button>
+        <p class="sub" id="save-note">On iPad this opens the share sheet. Choose Save Image or Save to Files. You can also press and hold the picture.</p>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+'use strict';
+
+var MM = 25.4;
+/* Credit card is ISO/IEC 7810 ID-1. OL202 is listed by Online Labels at 2.0483 x 3.2983 in; they publish no corner radius, so it uses the card's. */
+var FRAMES = {
+  card:  { long: 85.6, short: 53.98, r: 3.18, orient: 'landscape', dec: 3 },
+  ol202: { long: 3.2983 * MM, short: 2.0483 * MM, r: 3.18, orient: 'portrait', dec: 4 }
+};
+var KEY = 'card-crop-v1';
+var st = { frame: 'card', orient: 'landscape', round: true, ghost: true, dpi: 300 };
+try {
+  var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (saved) {
+    if (FRAMES[saved.frame]) st.frame = saved.frame;
+    if (saved.orient === 'landscape' || saved.orient === 'portrait') st.orient = saved.orient;
+    if (typeof saved.round === 'boolean') st.round = saved.round;
+    if (typeof saved.ghost === 'boolean') st.ghost = saved.ghost;
+    if ([150, 300, 600].indexOf(saved.dpi) >= 0) st.dpi = saved.dpi;
+  }
+} catch (e) {}
+function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+function $(id) { return document.getElementById(id); }
+
+function dims() {
+  var f = FRAMES[st.frame];
+  return st.orient === 'landscape' ? { w: f.long, h: f.short } : { w: f.short, h: f.long };
+}
+
+/* picture state: offset of the picture centre from the frame centre, in mm; km = mm per picture pixel */
+var img = null, iw = 0, ih = 0, rot = 0, mx = 0, my = 0, km = 1;
+var ZMIN = 0.25, ZMAX = 6;
+function effW() { return rot % 2 ? ih : iw; }
+function effH() { return rot % 2 ? iw : ih; }
+function kFill() { var d = dims(); return Math.max(d.w / effW(), d.h / effH()); }
+function kFit() { var d = dims(); return Math.min(d.w / effW(), d.h / effH()); }
+function clampK(k) { var b = kFill(); return Math.max(b * ZMIN, Math.min(b * ZMAX, k)); }
+
+/* ---------- workspace ---------- */
+var cv = $('work'), ctx = cv.getContext('2d'), W = 0, H = 0, dpr = 1, pat = null, patDpr = 0;
+function resize() {
+  var r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  W = r.width; H = r.height; dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  draw();
+}
+function px() { var d = dims(); return Math.min(0.86 * W / d.w, 0.86 * H / d.h); }
+
+function checkerPattern() {
+  if (pat && patDpr === dpr) return pat;
+  var t = document.createElement('canvas'), s = Math.round(8 * dpr);
+  t.width = t.height = s * 2;
+  var c = t.getContext('2d');
+  c.fillStyle = '#F6F8F8'; c.fillRect(0, 0, s * 2, s * 2);
+  c.fillStyle = '#D3DAD9'; c.fillRect(0, 0, s, s); c.fillRect(s, s, s, s);
+  pat = ctx.createPattern(t, 'repeat'); patDpr = dpr;
+  return pat;
+}
+
+function rrPath(c, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y); c.arcTo(x + w, y, x + w, y + r, r);
+  c.lineTo(x + w, y + h - r); c.arcTo(x + w, y + h, x + w - r, y + h, r);
+  c.lineTo(x + r, y + h); c.arcTo(x, y + h, x, y + h - r, r);
+  c.lineTo(x, y + r); c.arcTo(x, y, x + r, y, r);
+  c.closePath();
+}
+
+function drawPicture(c, s) {
+  c.save();
+  c.translate(W / 2 + mx * s, H / 2 + my * s);
+  c.rotate(rot * Math.PI / 2);
+  var k = km * s;
+  c.scale(k, k);
+  c.drawImage(img, -iw / 2, -ih / 2);
+  c.restore();
+}
+
+function draw() {
+  if (!W) return;
+  var d = dims(), s = px(), fw = d.w * s, fh = d.h * s, fx = (W - fw) / 2, fy = (H - fh) / 2;
+  var fr = st.round ? FRAMES[st.frame].r * s : 0, i;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = checkerPattern();
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+
+  if (img) {
+    if (st.ghost) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, W, H); rrPath(ctx, fx, fy, fw, fh, fr);
+      ctx.clip('evenodd');
+      ctx.globalAlpha = 0.35;
+      drawPicture(ctx, s);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.beginPath(); rrPath(ctx, fx, fy, fw, fh, fr); ctx.clip();
+    drawPicture(ctx, s);
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, H); rrPath(ctx, fx, fy, fw, fh, fr);
+    ctx.fillStyle = 'rgba(19,32,30,0.14)'; ctx.fill('evenodd');
+    ctx.restore();
+    var msg = 'Tap to add a picture', fs = Math.max(13, Math.min(17, fw / 18));
+    ctx.font = '500 ' + fs + 'px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var tw = ctx.measureText(msg).width + 28;
+    ctx.beginPath(); rrPath(ctx, W / 2 - tw / 2, H / 2 - fs, tw, fs * 2, fs);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+    ctx.fillStyle = '#13201E'; ctx.fillText(msg, W / 2, H / 2 + 1);
+  }
+
+  ctx.beginPath(); rrPath(ctx, fx, fy, fw, fh, fr);
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 4; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = '#13201E'; ctx.stroke();
+}
+
+/* ---------- labels and controls ---------- */
+function fmtIn(v, dec) { return v.toFixed(dec).replace(/0+$/, '').replace(/\.$/, ''); }
+function showDims() {
+  var d = dims(), f = FRAMES[st.frame];
+  $('dims').textContent = d.w.toFixed(1) + ' × ' + d.h.toFixed(1) + ' mm  ·  ' + fmtIn(d.w / MM, f.dec) + ' × ' + fmtIn(d.h / MM, f.dec) + ' in';
+}
+function pressed(btn, on) { btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+function syncUI() {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-frame]'), function (b) { pressed(b, b.dataset.frame === st.frame); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-orient]'), function (b) { pressed(b, b.dataset.orient === st.orient); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dpi]'), function (b) { pressed(b, +b.dataset.dpi === st.dpi); });
+  pressed($('round'), st.round); $('round').textContent = 'Rounded corners: ' + (st.round ? 'on' : 'off');
+  pressed($('ghost'), st.ghost); $('ghost').textContent = 'Faded picture outside: ' + (st.ghost ? 'on' : 'off');
+  var has = !!img;
+  ['zoom', 'fill', 'fit', 'rot-l', 'rot-r', 'crop'].forEach(function (id) { $(id).disabled = !has; });
+  $('pick').textContent = has ? 'Replace picture' : 'Add picture';
+  showDims(); syncZoom();
+}
+function syncZoom() {
+  if (!img) { $('zoom').value = 0; $('zoom-out').textContent = '100%'; return; }
+  var z = km / kFill();
+  $('zoom').value = Math.round(Math.log(z / ZMIN) / Math.log(ZMAX / ZMIN) * 1000);
+  $('zoom-out').textContent = Math.round(z * 100) + '%';
+}
+
+var stale = false;
+function touched() {
+  if (!$('result').hidden && !stale) { stale = true; $('stale').hidden = false; $('save').disabled = true; }
+}
+function changed() { touched(); draw(); syncZoom(); }
+
+function doFill() { km = kFill(); mx = my = 0; }
+function doFit() { km = kFit(); mx = my = 0; }
+
+/* ---------- loading a picture ---------- */
+var lastUrl = null;
+function loadFile(f) {
+  if (!f) return;
+  var url = URL.createObjectURL(f), im = new Image();
+  im.onload = function () {
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = url;
+    img = im; iw = im.naturalWidth; ih = im.naturalHeight; rot = 0;
+    doFill(); syncUI(); touched(); draw();
+    $('hint').textContent = 'Drag to move the picture. Pinch or scroll to zoom. The solid part is what you keep.';
+    $('note').textContent = iw + ' × ' + ih + ' px picture loaded.';
+  };
+  im.onerror = function () { URL.revokeObjectURL(url); $('note').textContent = 'That file could not be opened as a picture.'; };
+  im.src = url;
+}
+$('pick').addEventListener('click', function () { $('file').click(); });
+$('file').addEventListener('change', function () { loadFile($('file').files && $('file').files[0]); $('file').value = ''; });
+cv.addEventListener('dragover', function (e) { e.preventDefault(); });
+cv.addEventListener('drop', function (e) {
+  e.preventDefault();
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && /^image\//.test(f.type)) loadFile(f);
+});
+
+/* ---------- moving and zooming ---------- */
+var ptrs = {}, nPtrs = 0, moved = false;
+function ptrList() { var a = [], k; for (k in ptrs) a.push(ptrs[k]); return a; }
+function zoomAbout(f, ax, ay) {
+  /* keep the picture point under (ax, ay) where it is while the scale changes */
+  var s = px(), nk = clampK(km * f), ff = nk / km;
+  var cx = mx * s, cy = my * s, qx = ax - W / 2, qy = ay - H / 2;
+  mx = (qx + (cx - qx) * ff) / s; my = (qy + (cy - qy) * ff) / s;
+  km = nk;
+}
+cv.addEventListener('pointerdown', function (e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  var r = cv.getBoundingClientRect();
+  ptrs[e.pointerId] = { id: e.pointerId, x: e.clientX - r.left, y: e.clientY - r.top };
+  nPtrs++; moved = nPtrs > 1;
+  cv.focus({ preventScroll: true });
+});
+cv.addEventListener('pointermove', function (e) {
+  var p = ptrs[e.pointerId];
+  if (!p) return;
+  var r = cv.getBoundingClientRect(), nx = e.clientX - r.left, ny = e.clientY - r.top;
+  if (!img) { p.x = nx; p.y = ny; return; }
+  var s = px();
+  if (nPtrs === 1) {
+    if (Math.abs(nx - p.x) + Math.abs(ny - p.y) > 0) moved = true;
+    mx += (nx - p.x) / s; my += (ny - p.y) / s;
+  } else if (nPtrs === 2) {
+    var o = ptrList().filter(function (q) { return q.id !== p.id; })[0];
+    var d0 = Math.hypot(p.x - o.x, p.y - o.y), d1 = Math.hypot(nx - o.x, ny - o.y);
+    var m0x = (p.x + o.x) / 2, m0y = (p.y + o.y) / 2, m1x = (nx + o.x) / 2, m1y = (ny + o.y) / 2;
+    if (d0 > 8) zoomAbout(d1 / d0, m0x, m0y);
+    mx += (m1x - m0x) / s; my += (m1y - m0y) / s;
+  }
+  p.x = nx; p.y = ny;
+  changed();
+});
+function release(e) {
+  if (!ptrs[e.pointerId]) return;
+  delete ptrs[e.pointerId]; nPtrs--;
+  if (nPtrs === 0 && !moved && !img && e.type === 'pointerup') $('file').click();
+}
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', release);
+cv.addEventListener('wheel', function (e) {
+  if (!img) return;
+  e.preventDefault();
+  var r = cv.getBoundingClientRect();
+  zoomAbout(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+  changed();
+}, { passive: false });
+cv.addEventListener('keydown', function (e) {
+  if (!img) return;
+  var step = e.shiftKey ? 2 : 0.25, k = e.key, handled = true;
+  if (k === 'ArrowLeft') mx -= step; else if (k === 'ArrowRight') mx += step;
+  else if (k === 'ArrowUp') my -= step; else if (k === 'ArrowDown') my += step;
+  else if (k === '+' || k === '=') zoomAbout(1.05, W / 2, H / 2);
+  else if (k === '-') zoomAbout(1 / 1.05, W / 2, H / 2);
+  else handled = false;
+  if (handled) { e.preventDefault(); changed(); }
+});
+
+$('zoom').addEventListener('input', function () {
+  var z = ZMIN * Math.pow(ZMAX / ZMIN, $('zoom').value / 1000);
+  zoomAbout(z * kFill() / km, W / 2 + mx * px(), H / 2 + my * px());
+  changed();
+});
+$('fill').addEventListener('click', function () { doFill(); changed(); });
+$('fit').addEventListener('click', function () { doFit(); changed(); });
+$('rot-l').addEventListener('click', function () { rot = (rot + 3) % 4; doFill(); changed(); });
+$('rot-r').addEventListener('click', function () { rot = (rot + 1) % 4; doFill(); changed(); });
+
+/* ---------- frame settings ---------- */
+Array.prototype.forEach.call(document.querySelectorAll('[data-frame]'), function (b) {
+  b.addEventListener('click', function () {
+    st.frame = b.dataset.frame; st.orient = FRAMES[st.frame].orient;
+    if (img) doFill();
+    saveSettings(); syncUI(); touched(); draw();
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-orient]'), function (b) {
+  b.addEventListener('click', function () {
+    if (st.orient === b.dataset.orient) return;
+    st.orient = b.dataset.orient;
+    if (img) doFill();
+    saveSettings(); syncUI(); touched(); draw();
+  });
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-dpi]'), function (b) {
+  b.addEventListener('click', function () { st.dpi = +b.dataset.dpi; saveSettings(); syncUI(); touched(); });
+});
+$('round').addEventListener('click', function () { st.round = !st.round; saveSettings(); syncUI(); touched(); draw(); });
+$('ghost').addEventListener('click', function () { st.ghost = !st.ghost; saveSettings(); syncUI(); draw(); });
+
+/* ---------- cropping ---------- */
+function rrect(c, x, y, w, h, r) { c.beginPath(); rrPath(c, x, y, w, h, r); }
+
+/* halve big pictures step by step so shrinking stays sharp */
+function prepSource(kOut) {
+  var cur = img, cw = iw, cf = 1;
+  while (kOut / cf < 0.5 && cw > 2) {
+    cf *= 0.5;
+    var n = document.createElement('canvas');
+    n.width = Math.max(1, Math.round(iw * cf)); n.height = Math.max(1, Math.round(ih * cf));
+    var nc = n.getContext('2d');
+    nc.imageSmoothingEnabled = true; nc.imageSmoothingQuality = 'high';
+    nc.drawImage(cur, 0, 0, n.width, n.height);
+    cur = n; cw = n.width;
+  }
+  return { src: cur, w: cur === img ? iw : cur.width, h: cur === img ? ih : cur.height };
+}
+
+function renderCrop(dpi) {
+  var d = dims(), pw = Math.round(d.w / MM * dpi), ph = Math.round(d.h / MM * dpi);
+  var out = document.createElement('canvas');
+  out.width = pw; out.height = ph;
+  var c = out.getContext('2d');
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  var sO = pw / d.w;
+  rrect(c, 0, 0, pw, ph, st.round ? FRAMES[st.frame].r * sO : 0);
+  c.clip();
+  var p = prepSource(km * sO), k = km * sO * iw / p.w;
+  c.translate(pw / 2 + mx * sO, ph / 2 + my * sO);
+  c.rotate(rot * Math.PI / 2);
+  c.scale(k, k);
+  c.drawImage(p.src, -p.w / 2, -p.h / 2);
+  return out;
+}
+
+/* write the print size into the PNG so it opens at exactly the right size in print apps */
+var crcTable = null;
+function crc32(b) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+  }
+  var v = 0xFFFFFFFF;
+  for (var i = 0; i < b.length; i++) v = crcTable[(v ^ b[i]) & 255] ^ (v >>> 8);
+  return (v ^ 0xFFFFFFFF) >>> 0;
+}
+function withDpi(blob, dpi) {
+  return blob.arrayBuffer().then(function (buf) {
+    var src = new Uint8Array(buf), ppm = Math.round(dpi / 0.0254);
+    var phys = new Uint8Array(21), dv = new DataView(phys.buffer);
+    dv.setUint32(0, 9); phys.set([0x70, 0x48, 0x59, 0x73], 4);
+    dv.setUint32(8, ppm); dv.setUint32(12, ppm); phys[16] = 1;
+    dv.setUint32(17, crc32(phys.subarray(4, 17)));
+    var parts = [src.subarray(0, 8)], pos = 8, done = false;
+    var sdv = new DataView(buf);
+    while (pos + 12 <= src.length) {
+      var len = sdv.getUint32(pos), type = String.fromCharCode(src[pos + 4], src[pos + 5], src[pos + 6], src[pos + 7]), end = pos + 12 + len;
+      if (type !== 'pHYs') parts.push(src.subarray(pos, end));
+      if (type === 'IHDR' && !done) { parts.push(phys); done = true; }
+      pos = end;
+    }
+    return new Blob(parts, { type: 'image/png' });
+  });
+}
+
+var resultBlob = null, resultUrl = null, resultName = 'card-crop.png';
+function showResult(blob, pw, ph) {
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultBlob = blob; resultUrl = URL.createObjectURL(blob);
+  $('res-img').src = resultUrl;
+  var d = dims(), f = FRAMES[st.frame];
+  $('res-info').textContent = pw + ' × ' + ph + ' px  ·  ' + fmtIn(d.w / MM, f.dec) + ' × ' + fmtIn(d.h / MM, f.dec) + ' in at ' + st.dpi + ' dpi';
+  resultName = 'card-crop-' + st.frame + '-' + st.dpi + 'dpi.png';
+  stale = false; $('stale').hidden = true; $('save').disabled = false;
+  $('result').hidden = false;
+  try { $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+}
+$('crop').addEventListener('click', function () {
+  if (!img) return;
+  var out;
+  try { out = renderCrop(st.dpi); } catch (e) { $('note').textContent = 'Could not crop that picture. Try a smaller one.'; return; }
+  out.toBlob(function (blob) {
+    if (!blob) { $('note').textContent = 'Could not build the PNG. Try again.'; return; }
+    withDpi(blob, st.dpi).then(function (b2) { showResult(b2, out.width, out.height); },
+                              function () { showResult(blob, out.width, out.height); });
+    $('note').textContent = 'Cropped. Corners and everything outside the outline are transparent.';
+  }, 'image/png');
+});
+
+/* ---------- saving ---------- */
+function saveBlob(blob, filename) {
+  var file = null;
+  try { file = new File([blob], filename, { type: 'image/png' }); } catch (e) {}
+  var canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+  function plain() {
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
+    return Promise.resolve();
+  }
+  if (!canShare) return plain();
+  return navigator.share({ files: [file], title: filename }).catch(function (e) {
+    if (e && e.name === 'AbortError') return Promise.reject(e);
+    return plain();
+  });
+}
+$('save').addEventListener('click', function () {
+  if (!resultBlob || stale) return;
+  saveBlob(resultBlob, resultName).then(function () {
+    $('save-note').textContent = 'Saved ' + resultName + '.';
+  }, function () {
+    $('save-note').textContent = 'Save canceled. You can also press and hold the picture.';
+  });
+});
+
+/* ---------- start ---------- */
+if (window.ResizeObserver) new ResizeObserver(resize).observe(cv); else window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', function () { setTimeout(resize, 200); });
+syncUI();
+resize();
+})();
+</script>
+</body>
+</html>
