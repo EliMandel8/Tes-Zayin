@@ -21,7 +21,7 @@ html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap">
 <style>
-/* Layout: board and tool row on the left, colour and export cards on the right; stacks below 860px. */
+/* Layout: board and tool row on the left, color, wheel, trace and export cards on the right; stacks below 860px with the color card right under the board. */
 :root {
   --bg: #EAEFEE;
   --surface: #FFFFFF;
@@ -32,6 +32,7 @@ html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-
   --accent: #0B7F82;
   --accent-fg: #FFFFFF;
   --accent-soft: #D6EEEE;
+  --danger: #C0392B;
   --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-px: "Silkscreen", "Courier New", ui-monospace, monospace;
   --radius: 10px;
@@ -47,6 +48,7 @@ html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-
     --accent: #3FC3C6;
     --accent-fg: #062423;
     --accent-soft: #14393A;
+    --danger: #FF8F80;
     color-scheme: dark;
   }
 }
@@ -60,6 +62,7 @@ html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-
   --accent: #3FC3C6;
   --accent-fg: #062423;
   --accent-soft: #14393A;
+  --danger: #FF8F80;
   color-scheme: dark;
 }
 
@@ -77,13 +80,14 @@ body {
 }
 button, input { font: inherit; color: inherit; }
 button { touch-action: manipulation; cursor: pointer; }
+.btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .app {
   max-width: 1080px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 308px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 16px 20px;
   align-items: start;
 }
@@ -137,6 +141,7 @@ h1 {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 .btn:disabled { opacity: 0.4; cursor: default; }
+.btn.armed { border-color: var(--danger); color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 
 .hint { margin: 0; color: var(--muted); font-size: 13px; min-height: 1.4em; }
@@ -151,6 +156,7 @@ h1 {
 }
 #board {
   display: block;
+  margin-inline: auto;
   width: 100%;
   aspect-ratio: 1;
   max-width: 100%;
@@ -177,6 +183,42 @@ h1 {
   position: relative; overflow: hidden;
 }
 .readout .chip i { position: absolute; inset: 0; }
+.readout { flex-wrap: wrap; }
+.opt {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 36px;
+  font: 400 13px/1.25 var(--font-ui); letter-spacing: normal;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.opt input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+
+.loupe {
+  position: fixed; left: 0; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 10px;
+  min-width: 156px;
+  padding: 6px 14px 6px 6px;
+  background: var(--surface); color: var(--fg);
+  border: 1.5px solid var(--line); border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  pointer-events: none; user-select: none; -webkit-user-select: none;
+  white-space: nowrap;
+}
+.loupe[hidden] { display: none; }
+.loupe i {
+  width: 34px; height: 34px; border-radius: 7px; flex: none;
+  border: 1px solid var(--line);
+  background-image: conic-gradient(#d8dedd 25%, #fff 0 50%, #d8dedd 0 75%, #fff 0);
+  background-size: 10px 10px;
+}
+.loupe.off i {
+  background: linear-gradient(45deg, transparent 45%, var(--muted) 45% 55%, transparent 55%),
+              linear-gradient(-45deg, transparent 45%, var(--muted) 45% 55%, transparent 55%), var(--surface-2);
+}
+.loupe b { display: block; font: 700 14px/1.1 var(--font-px); letter-spacing: 0.06em; }
+.loupe span { display: block; margin-top: 4px; font: 500 12px/1 var(--font-ui); color: var(--muted); }
 
 .panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .card {
@@ -197,12 +239,11 @@ h1 {
 
 .wheel-wrap { display: flex; justify-content: center; }
 #wheel {
-  width: 100%; max-width: 240px; aspect-ratio: 1;
-  touch-action: none; user-select: none; -webkit-user-select: none;
-  border-radius: 50%;
+  width: 100%; max-width: 300px; aspect-ratio: 1;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   cursor: crosshair;
 }
-.val-row { display: flex; align-items: center; gap: 12px; }
+.val-row { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 360px; margin-inline: auto; }
 .val-row label { font-size: 12px; color: var(--muted); }
 #val {
   flex: 1; min-width: 0; height: 28px; margin: 0;
@@ -222,19 +263,20 @@ h1 {
   width: 22px; height: 22px; border-radius: 50%;
   background: var(--surface); border: 3px solid var(--accent);
 }
-.current { display: flex; align-items: center; gap: 12px; }
+.cur-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.current { display: flex; align-items: center; gap: 10px; }
 #swatch {
-  width: 52px; height: 52px; border-radius: 8px;
+  width: 44px; height: 44px; border-radius: 8px;
   border: 1.5px solid var(--line); flex: none;
 }
 #hex {
-  flex: 1; min-width: 0; height: 44px; padding: 0 12px;
+  flex: none; width: 126px; min-width: 0; height: 44px; padding: 0 12px;
   background: var(--surface-2);
   border: 1.5px solid var(--line); border-radius: 8px;
   font: 500 16px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   text-transform: uppercase;
 }
-#hex[aria-invalid="true"] { border-color: #C0392B; }
+#hex[aria-invalid="true"] { border-color: var(--danger); }
 
 .swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .sw {
@@ -258,7 +300,6 @@ h1 {
   background: transparent; border: 1.5px solid var(--line);
   font-weight: 500; font-size: 14px;
 }
-.quiet.armed { border-color: #C0392B; color: #C0392B; }
 .toast { margin: 0; min-height: 1.4em; font-size: 13px; color: var(--muted); }
 
 .slider-row { display: flex; align-items: center; gap: 10px; }
@@ -277,8 +318,16 @@ h1 {
 
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .board-wrap { width: 100%; }
+  .board-wrap {
+    /* leave room under the board for the color card, so the palette is reachable without scrolling */
+    width: min(100%, max(320px, calc(100vh - 470px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))));
+    width: min(100%, max(320px, calc(100svh - 470px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))));
+    align-self: center;
+  }
   .btn { min-width: 58px; }
+}
+@media (min-width: 560px) and (max-width: 860px) {
+  .swatches { grid-template-columns: repeat(16, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .btn:active:not(:disabled) { transform: none; } }
 </style>
@@ -306,50 +355,58 @@ h1 {
         <button class="btn" id="t-drip" data-tool="drip" aria-pressed="false" title="Dropper (I)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l5 5M17 2l5 5-3 1-1-1-8 8-4 1-2 2 .5-2.5L5 14l1-4 8-8z" transform="translate(-1 1)"/></svg>Dropper
         </button>
-        <button class="btn" id="t-clear" data-tool="clear" aria-pressed="false" title="Turn a colour transparent (T)">
+        <button class="btn" id="t-clear" data-tool="clear" aria-pressed="false" title="Turn a color transparent (T)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h8V4M12 20v-8h8"/></svg>Transparent
         </button>
       </div>
       <div class="group">
-        <button class="btn" id="undo" title="Undo (Ctrl/Cmd+Z)" disabled>
+        <button class="btn" id="undo" title="Undo (Ctrl/Cmd+Z, or tap the board with two fingers). Hold to repeat." disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h6a5 5 0 0 1 0 10H8"/><path d="M12 4L9 7l3 3"/></svg>Undo
         </button>
-        <button class="btn" id="redo" title="Redo (Shift+Ctrl/Cmd+Z)" disabled>
+        <button class="btn" id="redo" title="Redo (Shift+Ctrl/Cmd+Z, or tap the board with three fingers). Hold to repeat." disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7H9a5 5 0 0 0 0 10h7"/><path d="M12 4l3 3-3 3"/></svg>Redo
         </button>
         <button class="btn" id="grid" aria-pressed="true" title="Show grid (G)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>Grid
         </button>
       </div>
+      <div class="group">
+        <button class="btn" id="wipe" title="Clear the whole board (tap twice)" aria-label="Clear the whole board">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5"/></svg><span id="wipe-label">Clear</span>
+        </button>
+      </div>
     </div>
     <p class="hint" id="hint" aria-live="polite"></p>
 
     <div class="board-wrap">
-      <canvas id="board" width="512" height="512" role="img" aria-label="16 by 16 pixel drawing board"></canvas>
+      <canvas id="board" width="512" height="512" tabindex="0" role="img" aria-label="16 by 16 pixel drawing board. Draw with a finger, Apple Pencil or mouse. With a keyboard, use the arrow keys to move and Space to use the tool." aria-describedby="hint"></canvas>
     </div>
-    <div class="readout" aria-live="off"><span class="chip"><i id="cellchip"></i></span><span id="cell">Touch the board</span></div>
+    <div class="readout" aria-live="off"><span class="chip"><i id="cellchip"></i></span><span id="cell">Touch the board</span>
+      <label class="opt" for="taps"><input type="checkbox" id="taps" checked>Tap with 2 fingers to undo, 3 to redo</label></div>
   </main>
 
   <aside class="panel">
-    <section class="card" aria-label="Colour">
-      <h2>Colour</h2>
-      <div class="wheel-wrap"><canvas id="wheel" width="240" height="240" role="img" aria-label="Colour wheel"></canvas></div>
+    <section class="card" aria-label="Color">
+      <div class="cur-row">
+        <h2>Color</h2>
+        <div class="current">
+          <div id="swatch" aria-hidden="true"></div>
+          <input id="hex" type="text" inputmode="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" maxlength="9" aria-label="Hex color" value="#FF004D">
+        </div>
+      </div>
+      <div class="swatches" id="palette" role="group" aria-label="Palette"></div>
+      <p class="sub">Recent</p>
+      <div class="swatches" id="recent" role="group" aria-label="Recent colors"></div>
+    </section>
+
+    <section class="card" aria-label="Color wheel">
+      <h2>Color wheel</h2>
+      <div class="wheel-wrap"><canvas id="wheel" tabindex="0" width="240" height="240" role="img" aria-label="Color wheel. Arrow keys change hue and saturation."></canvas></div>
       <div class="val-row">
         <label for="val">Dark</label>
         <input type="range" id="val" min="0" max="100" value="100" aria-label="Brightness">
-        <label for="val">Light</label>
+        <label for="val">Bright</label>
       </div>
-      <div class="current">
-        <div id="swatch" aria-hidden="true"></div>
-        <input id="hex" type="text" inputmode="text" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="7" aria-label="Hex colour" value="#FF004D">
-      </div>
-    </section>
-
-    <section class="card" aria-label="Palette">
-      <h2>Palette</h2>
-      <div class="swatches" id="palette"></div>
-      <p class="sub">Recent</p>
-      <div class="swatches" id="recent"></div>
     </section>
 
     <section class="card" aria-label="Trace image">
@@ -387,15 +444,17 @@ h1 {
       </div>
       <button class="primary" id="download">Download PNG</button>
       <p class="toast" id="toast" role="status" aria-live="polite">Transparent pixels stay transparent in the file.</p>
-      <button class="quiet" id="wipe">Clear board</button>
     </section>
   </aside>
 </div>
+<div class="loupe" id="loupe" aria-hidden="true" hidden><i id="loupe-chip"></i><div><b id="loupe-main"></b><span id="loupe-sub"></span></div></div>
 <script>
 (function () {
 'use strict';
 
-var N = 16, CELL = 32, S_PX = N * CELL;
+var N = 16;
+/* S_PX is the fixed frame the trace image is placed in. The board itself is sized in real screen pixels (see sizeBoard). */
+var S_PX = 512;
 var PALETTE = ['#000000','#1D2B53','#7E2553','#008751','#AB5236','#5F574F','#C2C3C7','#FFF1E8',
                '#FF004D','#FFA300','#FFEC27','#00E436','#29ADFF','#83769C','#FF77A8','#FFCCAA'];
 var HEART = [
@@ -427,7 +486,7 @@ var px = new Array(N * N).fill(null);
 var color = '#FF004D', tool = 'pen', prevDraw = 'pen';
 var showGrid = true, exportSize = 512;
 var recent = [], undoStack = [], redoStack = [];
-var hover = -1, stroke = null;
+var hover = -1, stroke = null, kb = 119, kbOn = false;
 var ref = null, refX = 0, refY = 0, refScale = 1, refOpacity = 0.5, refShow = true;
 
 /* ---------- storage ---------- */
@@ -439,7 +498,11 @@ function load() {
     if (!d || !Array.isArray(d.px) || d.px.length !== N * N) return false;
     px = d.px.map(function (v) { return isHex(v) ? v.toUpperCase() : null; });
     if (isHex(d.color)) color = d.color.toUpperCase();
-    if (Array.isArray(d.recent)) recent = d.recent.filter(isHex).slice(0, 8);
+    if (Array.isArray(d.recent)) {
+      recent = [];
+      d.recent.forEach(function (c) { if (isHex(c) && recent.indexOf(c.toUpperCase()) === -1) recent.push(c.toUpperCase()); });
+      recent = recent.slice(0, 8);
+    }
     if (typeof d.grid === 'boolean') showGrid = d.grid;
     return true;
   } catch (e) { return false; }
@@ -448,67 +511,167 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify({ px: px, color: color, recent: recent, grid: showGrid })); } catch (e) {}
 }
 
+/* The undo and redo steps are kept too, so they survive the app being closed (an iPad often closes apps in the
+   background). Each step is one 256-character string: a character per pixel standing for "empty" or for a color
+   in a shared list. The current board is stored with it, so a history that does not match the saved board is ignored. */
+var HKEY = 'pixel-sixteen-hist-v1', HIST_MAX = 100;
+function saveHist() {
+  try {
+    var table = [], index = {};
+    var enc = function (arr) {
+      var s = '';
+      for (var i = 0; i < arr.length; i++) {
+        var c = arr[i], k = 0;
+        if (c) {
+          if (index[c] === undefined) { index[c] = table.length; table.push(c); }
+          k = index[c] + 1;
+        }
+        s += String.fromCharCode(256 + k);
+      }
+      return s;
+    };
+    var data = { v: 1, now: enc(px), undo: undoStack.map(enc), redo: redoStack.map(enc), colors: table };
+    localStorage.setItem(HKEY, JSON.stringify(data));
+  } catch (e) {
+    try { localStorage.removeItem(HKEY); } catch (e2) {} /* never leave an old history next to a newer board */
+  }
+}
+function loadHist() {
+  try {
+    var raw = localStorage.getItem(HKEY);
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (!d || d.v !== 1 || typeof d.now !== 'string' || !Array.isArray(d.undo) || !Array.isArray(d.redo) || !Array.isArray(d.colors)) return;
+    if (d.undo.length > HIST_MAX * 2 || d.redo.length > HIST_MAX * 2 || d.colors.length > 1024) return;
+    var cols = d.colors.map(function (c) { return isHex(c) ? c.toUpperCase() : null; });
+    var dec = function (s) {
+      if (typeof s !== 'string' || s.length !== N * N) return null;
+      var arr = new Array(N * N);
+      for (var i = 0; i < arr.length; i++) {
+        var k = s.charCodeAt(i) - 256;
+        if (k === 0) arr[i] = null;
+        else if (k > 0 && k <= cols.length && cols[k - 1]) arr[i] = cols[k - 1];
+        else return null;
+      }
+      return arr;
+    };
+    var now = dec(d.now);
+    if (!now || !same(now, px)) return; /* it belongs to some other board: leave it alone */
+    var u = d.undo.map(dec), r = d.redo.map(dec);
+    if (u.indexOf(null) !== -1 || r.indexOf(null) !== -1) return;
+    undoStack = u.slice(-HIST_MAX);
+    redoStack = r.slice(-HIST_MAX);
+  } catch (e) {}
+}
+
 /* ---------- drawing the board ---------- */
-var checker = document.createElement('canvas');
-checker.width = checker.height = S_PX;
-(function () {
-  var c = checker.getContext('2d');
-  for (var y = 0; y < S_PX; y += 8) {
-    for (var x = 0; x < S_PX; x += 8) {
-      c.fillStyle = ((x + y) / 8) % 2 ? '#D3DAD9' : '#F6F8F8';
-      c.fillRect(x, y, 8, 8);
+/* The canvas holds a whole number of device pixels per board pixel (cell), so every board pixel is an exact
+   cell x cell block of screen pixels: no scaling blur, and every grid line has the same width and spacing. */
+var cell = 32, dpr = 1, bgLayer = null, gridLayer = null;
+var MIN_CELL = 8, MAX_CELL = 128;
+
+function makeLayer(size) {
+  var c = document.createElement('canvas');
+  c.width = c.height = size;
+  return c;
+}
+
+function buildLayers() {
+  var size = cell * N, sq = N * 4, i, j, c, x0, x1, y0, y1;
+  /* transparency checkerboard: four squares across every board pixel */
+  bgLayer = makeLayer(size);
+  c = bgLayer.getContext('2d');
+  for (j = 0; j < sq; j++) {
+    y0 = Math.round(j * size / sq); y1 = Math.round((j + 1) * size / sq);
+    for (i = 0; i < sq; i++) {
+      x0 = Math.round(i * size / sq); x1 = Math.round((i + 1) * size / sq);
+      c.fillStyle = (i + j) % 2 ? '#D3DAD9' : '#F6F8F8';
+      c.fillRect(x0, y0, x1 - x0, y1 - y0);
     }
   }
-})();
+  /* grid, drawn solid here and laid over the board at 55% so crossings are not darker than the lines */
+  gridLayer = makeLayer(size);
+  c = gridLayer.getContext('2d');
+  c.fillStyle = '#6E7D7A';
+  var g = Math.max(1, Math.round(dpr)), o = g >> 1;
+  for (i = 1; i < N; i++) {
+    c.fillRect(i * cell - o, 0, g, size);
+    c.fillRect(0, i * cell - o, size, g);
+  }
+}
+
+function frame(x, y, w, h, t, col) {
+  bctx.fillStyle = col;
+  bctx.fillRect(x, y, w, t);
+  bctx.fillRect(x, y + h - t, w, t);
+  bctx.fillRect(x, y + t, t, h - 2 * t);
+  bctx.fillRect(x + w - t, y + t, t, h - 2 * t);
+}
 
 function draw() {
-  bctx.clearRect(0, 0, S_PX, S_PX);
-  bctx.drawImage(checker, 0, 0);
+  if (!bgLayer) return;
+  var size = cell * N, i, x, y;
+  bctx.globalAlpha = 1;
+  bctx.drawImage(bgLayer, 0, 0);
   if (ref && refShow) {
-    var rd = refNatural();
+    var rd = refNatural(), k = size / S_PX;
     bctx.globalAlpha = refOpacity;
-    bctx.drawImage(ref, refX, refY, rd[0] * refScale, rd[1] * refScale);
+    bctx.drawImage(ref, refX * k, refY * k, rd[0] * refScale * k, rd[1] * refScale * k);
     bctx.globalAlpha = 1;
   }
-  var i, x, y;
   for (i = 0; i < px.length; i++) {
     if (!px[i]) continue;
     bctx.fillStyle = px[i];
-    bctx.fillRect((i % N) * CELL, ((i / N) | 0) * CELL, CELL, CELL);
+    bctx.fillRect((i % N) * cell, ((i / N) | 0) * cell, cell, cell);
   }
   if (showGrid) {
-    bctx.lineWidth = 1;
-    bctx.strokeStyle = 'rgba(110,125,122,0.55)';
-    bctx.beginPath();
-    for (i = 1; i < N; i++) {
-      bctx.moveTo(i * CELL + 0.5, 0); bctx.lineTo(i * CELL + 0.5, S_PX);
-      bctx.moveTo(0, i * CELL + 0.5); bctx.lineTo(S_PX, i * CELL + 0.5);
-    }
-    bctx.stroke();
+    bctx.globalAlpha = 0.55;
+    bctx.drawImage(gridLayer, 0, 0);
+    bctx.globalAlpha = 1;
   }
   if (hover >= 0) {
-    x = (hover % N) * CELL; y = ((hover / N) | 0) * CELL;
-    bctx.lineWidth = 4; bctx.strokeStyle = '#FFFFFF';
-    bctx.strokeRect(x + 2, y + 2, CELL - 4, CELL - 4);
-    bctx.lineWidth = 2; bctx.strokeStyle = '#000000';
-    bctx.strokeRect(x + 2, y + 2, CELL - 4, CELL - 4);
+    var u = Math.max(1, Math.round(dpr));
+    x = (hover % N) * cell; y = ((hover / N) | 0) * cell;
+    frame(x, y, cell, cell, 4 * u, '#FFFFFF');
+    frame(x + u, y + u, cell - 2 * u, cell - 2 * u, 2 * u, '#000000');
   }
 }
 
-function cellAt(e) {
-  var r = board.getBoundingClientRect();
-  var x = Math.floor((e.clientX - r.left) / r.width * N);
-  var y = Math.floor((e.clientY - r.top) / r.height * N);
-  if (x < 0 || y < 0 || x >= N || y >= N) return -1;
-  return y * N + x;
+/* Fit the canvas to the frame it sits in, in whole device pixels per board pixel. Runs at start, whenever the
+   frame changes size (rotation, window resize), and whenever the screen density changes. */
+function sizeBoard() {
+  var wrap = board.parentNode, cs = window.getComputedStyle(wrap);
+  var inner = wrap.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) -
+              parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
+  var d = window.devicePixelRatio || 1;
+  var c = Math.floor(inner * d / N + 1e-4);
+  c = Math.max(MIN_CELL, Math.min(MAX_CELL, c || MIN_CELL));
+  if (bgLayer && c === cell && d === dpr) return;
+  cell = c; dpr = d;
+  board.width = board.height = cell * N;
+  board.style.width = board.style.height = (cell * N / dpr) + 'px';
+  buildLayers();
+  draw();
 }
 
-function line(a, b, fn) {
-  var x0 = a % N, y0 = (a / N) | 0, x1 = b % N, y1 = (b / N) | 0;
+/* board cell under a pointer, as coordinates that may lie outside the board while a stroke is running */
+function cellXY(e) {
+  var r = board.getBoundingClientRect();
+  var x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N);
+  return [Math.max(-4 * N, Math.min(5 * N, x)), Math.max(-4 * N, Math.min(5 * N, y))];
+}
+function cellAt(e) {
+  var p = cellXY(e);
+  if (p[0] < 0 || p[1] < 0 || p[0] >= N || p[1] >= N) return -1;
+  return p[1] * N + p[0];
+}
+
+/* Bresenham between two cells; fn decides what to do with cells that lie off the board */
+function line(x0, y0, x1, y1, fn) {
   var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
   var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
   for (;;) {
-    fn(y0 * N + x0);
+    fn(x0, y0);
     if (x0 === x1 && y0 === y1) break;
     var e2 = 2 * err;
     if (e2 >= dy) { err += dy; x0 += sx; }
@@ -523,32 +686,41 @@ function same(a, b) {
   return true;
 }
 function refreshButtons() {
-  $('undo').disabled = !undoStack.length;
-  $('redo').disabled = !redoStack.length;
+  var nu = undoStack.length, nr = redoStack.length;
+  $('undo').disabled = !nu;
+  $('redo').disabled = !nr;
+  $('undo').setAttribute('aria-label', nu ? 'Undo, ' + nu + (nu === 1 ? ' step' : ' steps') + ' available' : 'Undo');
+  $('redo').setAttribute('aria-label', nr ? 'Redo, ' + nr + (nr === 1 ? ' step' : ' steps') + ' available' : 'Redo');
 }
 function commit(prev) {
   if (same(prev, px)) return false;
   undoStack.push(prev);
-  if (undoStack.length > 100) undoStack.shift();
+  if (undoStack.length > HIST_MAX) undoStack.shift();
   redoStack = [];
-  refreshButtons(); save();
+  refreshButtons(); save(); saveHist();
   return true;
 }
+/* undo and redo wait for a running stroke to finish, so a stroke can never be committed on top of a changed board */
 function undo() {
-  if (!undoStack.length) return;
+  if (stroke || !undoStack.length) return false;
   redoStack.push(snap());
   px = undoStack.pop();
-  draw(); refreshButtons(); save();
+  draw(); refreshButtons(); save(); saveHist();
+  if (hover >= 0) updateReadout(hover);
+  return true;
 }
 function redo() {
-  if (!redoStack.length) return;
+  if (stroke || !redoStack.length) return false;
   undoStack.push(snap());
   px = redoStack.pop();
-  draw(); refreshButtons(); save();
+  draw(); refreshButtons(); save(); saveHist();
+  if (hover >= 0) updateReadout(hover);
+  return true;
 }
 
 /* ---------- tool actions ---------- */
 function paint(i) { px[i] = tool === 'erase' ? null : color; }
+function paintXY(x, y) { if (x >= 0 && y >= 0 && x < N && y < N) paint(y * N + x); }
 
 function floodFill(i) {
   var target = px[i];
@@ -580,7 +752,24 @@ function addRecent(hex) {
   renderRecent(); save();
 }
 
-/* ---------- colour maths ---------- */
+/* one action at one cell: used by taps with the one-shot tools and by the keyboard */
+function actOnce(i) {
+  var prev = snap(), t = tool;
+  if (t === 'pen' || t === 'erase') {
+    paint(i);
+    if (commit(prev) && t === 'pen') addRecent(color);
+  } else if (t === 'fill') {
+    floodFill(i);
+    if (commit(prev)) addRecent(color);
+  } else if (t === 'clear') {
+    turnClear(i); commit(prev);
+  } else if (t === 'drip') {
+    if (px[i]) chooseColor(px[i], false); /* also puts the previous drawing tool back */
+    else $('hint').textContent = HINT_CLEAR;
+  }
+}
+
+/* ---------- color maths ---------- */
 var H = 0, S = 1, V = 1;
 function hexToRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
 function rgbToHex(r, g, b) {
@@ -604,34 +793,63 @@ function rgb2hsv(r, g, b) {
   return [h, mx ? d / mx : 0, mx];
 }
 
-/* ---------- colour wheel ---------- */
-var wheel = $('wheel'), wctx = wheel.getContext('2d'), W = 240, R = W / 2;
-var valInput = $('val'), hexInput = $('hex');
+/* tapping the board or the wheel puts away the on-screen keyboard: whatever text box has focus lets go of it */
+function blurOthers(keep) {
+  var a = document.activeElement;
+  if (a && a !== document.body && a !== keep && typeof a.blur === 'function') { try { a.blur(); } catch (err) {} }
+}
 
-function drawWheel() {
-  var img = wctx.createImageData(W, W), d = img.data, x, y;
-  for (y = 0; y < W; y++) {
-    for (x = 0; x < W; x++) {
+/* ---------- color wheel ---------- */
+/* The wheel is drawn once at full brightness, at the screen's real pixel size, then dimmed for the brightness
+   slider with a black overlay. Dragging is cheap and the wheel stays sharp on a Retina iPad. */
+var wheel = $('wheel'), wctx = wheel.getContext('2d');
+var wheelBase = null, wheelN = 0, wheelS = 1, wheelRw = 0;
+var valInput = $('val'), hexInput = $('hex'), hexTyping = false;
+
+function sizeWheel() {
+  var r = wheel.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  var n = Math.max(120, Math.round(r.width * d));
+  if (wheelBase && n === wheelN) return;
+  wheelN = n; wheelS = n / 240;
+  wheelRw = n / 2 - 11 * wheelS; /* leaves room all round for the marker ring */
+  wheel.width = wheel.height = n;
+  wheelBase = document.createElement('canvas');
+  wheelBase.width = wheelBase.height = n;
+  var c = wheelBase.getContext('2d'), img = c.createImageData(n, n), data = img.data, R = n / 2, x, y;
+  for (y = 0; y < n; y++) {
+    for (x = 0; x < n; x++) {
       var dx = x + 0.5 - R, dy = y + 0.5 - R, dist = Math.sqrt(dx * dx + dy * dy);
-      var o = (y * W + x) * 4;
-      if (dist > R) continue;
-      var hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-      var rgb = hsv2rgb(hue, Math.min(1, dist / R), V);
-      d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2];
-      d[o + 3] = Math.round(Math.max(0, Math.min(1, R - dist + 0.5)) * 255);
+      if (dist > wheelRw + 1) continue;
+      var o = (y * n + x) * 4, rgb = hsv2rgb(Math.atan2(dy, dx) * 180 / Math.PI, Math.min(1, dist / wheelRw), 1);
+      data[o] = rgb[0]; data[o + 1] = rgb[1]; data[o + 2] = rgb[2];
+      data[o + 3] = Math.round(Math.max(0, Math.min(1, wheelRw - dist + 0.5)) * 255);
     }
   }
-  wctx.putImageData(img, 0, 0);
-  var a = H * Math.PI / 180, mx = R + Math.cos(a) * S * (R - 1), my = R + Math.sin(a) * S * (R - 1);
-  wctx.lineWidth = 4; wctx.strokeStyle = '#FFFFFF';
-  wctx.beginPath(); wctx.arc(mx, my, 8, 0, Math.PI * 2); wctx.stroke();
-  wctx.lineWidth = 2; wctx.strokeStyle = '#000000';
-  wctx.beginPath(); wctx.arc(mx, my, 8, 0, Math.PI * 2); wctx.stroke();
+  c.putImageData(img, 0, 0);
+  drawWheel();
+}
+
+function drawWheel() {
+  if (!wheelBase) return;
+  var n = wheelN, R = n / 2, s = wheelS;
+  wctx.clearRect(0, 0, n, n);
+  wctx.drawImage(wheelBase, 0, 0);
+  if (V < 1) {
+    wctx.globalCompositeOperation = 'source-atop';
+    wctx.fillStyle = 'rgba(0,0,0,' + (1 - V) + ')';
+    wctx.fillRect(0, 0, n, n);
+    wctx.globalCompositeOperation = 'source-over';
+  }
+  var a = H * Math.PI / 180, mx = R + Math.cos(a) * S * wheelRw, my = R + Math.sin(a) * S * wheelRw;
+  wctx.lineWidth = 4 * s; wctx.strokeStyle = '#FFFFFF';
+  wctx.beginPath(); wctx.arc(mx, my, 8 * s, 0, Math.PI * 2); wctx.stroke();
+  wctx.lineWidth = 2 * s; wctx.strokeStyle = '#000000';
+  wctx.beginPath(); wctx.arc(mx, my, 8 * s, 0, Math.PI * 2); wctx.stroke();
 }
 
 function updateColorUI() {
   $('swatch').style.background = color;
-  if (document.activeElement !== hexInput) { hexInput.value = color; hexInput.removeAttribute('aria-invalid'); }
+  if (!hexTyping) { hexInput.value = color; hexInput.removeAttribute('aria-invalid'); }
   valInput.value = Math.round(V * 100);
   var top = hsv2rgb(H, S, 1);
   valInput.style.background = 'linear-gradient(90deg, #000000, ' + rgbToHex(top[0], top[1], top[2]) + ')';
@@ -642,7 +860,13 @@ function updateColorUI() {
 
 function setColor(hex, fromWheel) {
   color = hex.toUpperCase();
-  if (!fromWheel) { var h = rgb2hsv.apply(null, hexToRgb(color)); H = h[0]; S = h[1]; V = h[2]; }
+  if (!fromWheel) {
+    /* a grey or black has no hue of its own: keep the wheel where it was instead of snapping it to red */
+    var h = rgb2hsv.apply(null, hexToRgb(color));
+    if (h[1] > 0 && h[2] > 0) H = h[0];
+    if (h[2] > 0) S = h[1];
+    V = h[2];
+  }
   updateColorUI();
   save();
 }
@@ -652,34 +876,87 @@ function chooseColor(hex, fromWheel) {
   if (tool === 'erase' || tool === 'drip' || tool === 'clear') setTool(prevDraw);
 }
 
-function colorFromWheelEvent(e) {
-  var r = wheel.getBoundingClientRect();
-  var dx = (e.clientX - r.left) / r.width * W - R, dy = (e.clientY - r.top) / r.height * W - R;
-  H = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-  S = Math.min(1, Math.sqrt(dx * dx + dy * dy) / R);
+function applyHSV() {
   var rgb = hsv2rgb(H, S, V);
   chooseColor(rgbToHex(rgb[0], rgb[1], rgb[2]), true);
 }
-var wheelDown = false;
+
+function pickWheel(e) {
+  if (!wheelBase) return;
+  var r = wheel.getBoundingClientRect();
+  var dx = (e.clientX - r.left) / r.width * wheelN - wheelN / 2, dy = (e.clientY - r.top) / r.height * wheelN - wheelN / 2;
+  H = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+  S = Math.min(1, Math.sqrt(dx * dx + dy * dy) / wheelRw);
+  applyHSV();
+}
+
+/* the newest finger or pen leads; the others are ignored, so two fingers can never fight over the color */
+var wheelPtr = -1;
 wheel.addEventListener('pointerdown', function (e) {
-  e.preventDefault(); wheelDown = true; wheel.setPointerCapture(e.pointerId); colorFromWheelEvent(e);
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  wheelPtr = e.pointerId;
+  try { wheel.setPointerCapture(e.pointerId); } catch (err) {}
+  blurOthers(wheel);
+  if (V < 0.1) V = 1; /* a black wheel cannot pick anything: light it up first */
+  pickWheel(e);
 });
-wheel.addEventListener('pointermove', function (e) { if (wheelDown) colorFromWheelEvent(e); });
-function wheelUp() { wheelDown = false; }
-wheel.addEventListener('pointerup', wheelUp);
-wheel.addEventListener('pointercancel', wheelUp);
+wheel.addEventListener('pointermove', function (e) { if (e.pointerId === wheelPtr) pickWheel(e); });
+function wheelEnd(e) { if (e.pointerId === wheelPtr) wheelPtr = -1; }
+wheel.addEventListener('pointerup', wheelEnd);
+wheel.addEventListener('pointercancel', wheelEnd);
+wheel.addEventListener('lostpointercapture', wheelEnd);
+wheel.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+/* keyboard: left and right turn the hue, up and down change the saturation, Shift for bigger steps */
+wheel.addEventListener('keydown', function (e) {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  var k = e.key, big = e.shiftKey, hit = true;
+  if (k === 'ArrowRight') H = (H + (big ? 15 : 3)) % 360;
+  else if (k === 'ArrowLeft') H = (H - (big ? 15 : 3) + 360) % 360;
+  else if (k === 'ArrowUp') S = Math.min(1, S + (big ? 0.1 : 0.02));
+  else if (k === 'ArrowDown') S = Math.max(0, S - (big ? 0.1 : 0.02));
+  else hit = false;
+  if (!hit) return;
+  e.preventDefault();
+  if (V < 0.1) V = 1;
+  applyHSV();
+});
 
 valInput.addEventListener('input', function () {
   V = valInput.value / 100;
-  var rgb = hsv2rgb(H, S, V);
-  chooseColor(rgbToHex(rgb[0], rgb[1], rgb[2]), true);
+  applyHSV();
 });
 
+/* ---------- hex box ---------- */
+/* accepts #RRGGBB, RRGGBB and the short #RGB form, in any case */
+function parseHex(t) {
+  t = t.trim();
+  if (t.charAt(0) === '#') t = t.slice(1);
+  if (/^[0-9a-f]{3}$/i.test(t)) t = t.charAt(0) + t.charAt(0) + t.charAt(1) + t.charAt(1) + t.charAt(2) + t.charAt(2);
+  return /^[0-9a-f]{6}$/i.test(t) ? '#' + t : '';
+}
 hexInput.addEventListener('input', function () {
-  var t = hexInput.value.trim();
-  if (t.charAt(0) !== '#') t = '#' + t;
-  if (isHex(t)) { hexInput.removeAttribute('aria-invalid'); chooseColor(t, false); }
-  else if (t.length >= 7) hexInput.setAttribute('aria-invalid', 'true');
+  var raw = hexInput.value.trim(), body = raw.charAt(0) === '#' ? raw.slice(1) : raw, v = parseHex(raw);
+  if (v) {
+    hexInput.removeAttribute('aria-invalid');
+    hexTyping = true;
+    try { chooseColor(v, false); } finally { hexTyping = false; }
+  } else if (/[^0-9a-f]/i.test(body) || body.length > 6) {
+    hexInput.setAttribute('aria-invalid', 'true');
+  } else {
+    hexInput.removeAttribute('aria-invalid');
+  }
+});
+hexInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); hexInput.blur(); }
+  else if (e.key === 'Escape') { hexInput.value = color; hexInput.blur(); }
+});
+hexInput.addEventListener('focus', function () {
+  /* select everything so the next thing typed replaces it; the explicit range is what iPad Safari needs */
+  setTimeout(function () {
+    try { hexInput.select(); hexInput.setSelectionRange(0, hexInput.value.length); } catch (err) {}
+  }, 0);
 });
 hexInput.addEventListener('blur', function () { hexInput.value = color; hexInput.removeAttribute('aria-invalid'); });
 
@@ -701,17 +978,49 @@ function renderRecent() {
 }
 (function () { var box = $('palette'); PALETTE.forEach(function (c) { box.appendChild(makeSwatch(c)); }); })();
 
+/* ---------- dropper preview ---------- */
+/* While the dropper is aimed, a small bubble above the finger, Pencil or mouse shows the color that lifting would pick up. */
+var loupe = $('loupe'), loupeChip = $('loupe-chip'), loupeMain = $('loupe-main'), loupeSub = $('loupe-sub');
+var loupeTimer = 0, loupeLinger = false, hoverTimer = 0;
+function loupeHide() {
+  clearTimeout(loupeTimer);
+  clearTimeout(hoverTimer);
+  loupeLinger = false;
+  loupe.hidden = true;
+}
+function loupeMove(x, y, type) {
+  var w = loupe.offsetWidth, h = loupe.offsetHeight, gap = type === 'touch' ? 64 : 34;
+  var lx = Math.max(8, Math.min(window.innerWidth - w - 8, x - w / 2));
+  var ly = y - gap - h;
+  if (ly < 8) ly = Math.max(8, Math.min(window.innerHeight - h - 8, y + gap)); /* no room above: go below */
+  loupe.style.transform = 'translate(' + Math.round(lx) + 'px,' + Math.round(ly) + 'px)';
+}
+/* cell i is the one under the pointer; -1 means the pointer is off the board */
+function loupeAim(i, x, y, type, sub) {
+  clearTimeout(loupeTimer);
+  loupeLinger = false;
+  var kind = i < 0 ? 'off' : px[i] ? 'color' : 'clear';
+  loupe.className = 'loupe ' + kind;
+  loupeChip.style.background = kind === 'color' ? px[i] : '';
+  loupeMain.textContent = kind === 'color' ? px[i] : kind === 'clear' ? 'Transparent' : 'Off the board';
+  loupeSub.textContent = kind === 'off' ? 'Lift to cancel' : kind === 'clear' ? 'Nothing to pick up' : sub;
+  loupe.hidden = false;
+  loupeMove(x, y, type);
+}
+
 /* ---------- tools ---------- */
+var HINT_CLEAR = 'That pixel is transparent, so there is no color to pick up. Press another pixel.';
 var HINTS = {
-  pen: 'Tap or drag to paint with the current colour.',
+  pen: 'Tap or drag to paint with the current color.',
   erase: 'Tap or drag to erase pixels back to transparent.',
-  fill: 'Tap a pixel to fill the connected area with the current colour.',
-  drip: 'Tap a pixel to pick up its colour.',
-  clear: 'Tap a pixel to turn every pixel of that colour transparent.',
+  fill: 'Tap a pixel to fill the connected area with the current color.',
+  drip: 'Press a pixel and slide to aim. Lift to pick up its color.',
+  clear: 'Tap a pixel to turn every pixel of that color transparent.',
   move: 'Drag on the board to slide the trace image into place.'
 };
 function setTool(t) {
   tool = t;
+  loupeHide();
   if (t === 'pen' || t === 'fill') prevDraw = t;
   var btns = document.querySelectorAll('[data-tool]');
   for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].dataset.tool === t ? 'true' : 'false');
@@ -728,10 +1037,78 @@ function setGrid(on) {
   showGrid = on; $('grid').setAttribute('aria-pressed', on ? 'true' : 'false'); draw(); save();
 }
 $('grid').addEventListener('click', function () { setGrid(!showGrid); });
-$('undo').addEventListener('click', undo);
-$('redo').addEventListener('click', redo);
+/* a short message in the hint line (screen readers read it out); the tool's own hint comes back after a moment */
+var flashTimer = 0;
+function flashHint(msg) {
+  var h = $('hint');
+  clearTimeout(flashTimer);
+  h.textContent = msg;
+  flashTimer = setTimeout(function () { if (h.textContent === msg) h.textContent = HINTS[tool] || ''; }, 2200);
+}
+function sayHistory(undoing, moved) {
+  var w = undoing ? 'undo' : 'redo', n = undoing ? undoStack.length : redoStack.length;
+  if (!moved) flashHint('Nothing to ' + w + '.');
+  else flashHint((undoing ? 'Undone. ' : 'Redone. ') + (n ? n + (n === 1 ? ' step' : ' steps') + ' left to ' + w + '.' : 'No more steps to ' + w + '.'));
+}
+/* one undo or redo, with its message: the button, the keyboard and the finger taps all come through here */
+function stepHistory(undoing) {
+  if (stroke) return false; /* a running stroke finishes first */
+  var ok = undoing ? undo() : redo();
+  sayHistory(undoing, ok);
+  return ok;
+}
+
+/* Undo and Redo buttons: a tap is one step; holding the button repeats (first repeat after 450 ms, then every 90 ms) */
+function repeatButton(btn, undoing) {
+  var delay = 0, tick = 0, rel = 0, holding = false, held = false, did = 0, id = -1;
+  function stop() {
+    clearTimeout(delay); clearInterval(tick); delay = tick = 0; id = -1;
+    if (!holding) return;
+    holding = false;
+    if (did) sayHistory(undoing, true);
+    clearTimeout(rel);
+    rel = setTimeout(function () { held = false; }, 350); /* the click that ends a hold is skipped */
+  }
+  function step() {
+    var ok = undoing ? undo() : redo();
+    if (ok) did++;
+    if (!ok || btn.disabled) stop();
+  }
+  btn.addEventListener('pointerdown', function (e) {
+    if (btn.disabled || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    clearTimeout(delay); clearInterval(tick); clearTimeout(rel);
+    held = holding = false; id = e.pointerId;
+    delay = setTimeout(function () {
+      held = holding = true; did = 0;
+      step();
+      if (holding) tick = setInterval(step, 90);
+    }, 450);
+  });
+  function end(e) { if (e.pointerId === id) stop(); }
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end); /* a scroll that starts on the button ends the hold */
+  btn.addEventListener('pointerleave', end);
+  btn.addEventListener('click', function (e) {
+    if (held && e.detail !== 0) { held = false; return; } /* the hold already did its steps; a key press always counts */
+    stepHistory(undoing);
+  });
+  window.addEventListener('blur', stop);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') stop(); });
+}
+repeatButton($('undo'), true);
+repeatButton($('redo'), false);
 
 /* ---------- board input ---------- */
+/* One pointer draws at a time, and a stroke is always either kept whole or rolled back whole:
+   - a second finger is ignored while a stroke is running
+   - a palm resting on the glass just before, during or just after Apple Pencil use is ignored,
+     and the Pencil takes over from a palm that landed first
+   - a stroke the system cancels is rolled back; one that is only interrupted (app switch, lost finger-up) is kept
+   - undo, redo and clear wait for the stroke to finish */
+var STALE_MS = 1500, PALM_MS = 1200, PEN_HOLD_MS = 8000, lastPenAt = -1e9;
+var TAP_JOIN_MS = 120, TAP_MAX_MS = 400, TAP_LIFT_MS = 150, TAP_SLOP = 12, INK_MS = 450, lastInkAt = -1e9, tap = null;
+function nowMs() { return window.performance && performance.now ? performance.now() : Date.now(); }
+
 function updateReadout(i) {
   if (i < 0) { $('cell').textContent = 'Touch the board'; $('cellchip').style.background = 'transparent'; return; }
   var c = px[i];
@@ -739,64 +1116,250 @@ function updateReadout(i) {
   $('cellchip').style.background = c || 'transparent';
 }
 
+function beginAt(i, e) {
+  var t = tool;
+  if (t === 'pen' || t === 'erase') {
+    stroke = { id: e.pointerId, type: e.pointerType, tool: t, prev: snap(), lx: i % N, ly: (i / N) | 0, t: nowMs() };
+    paint(i);
+  } else if (t === 'move') {
+    if (ref) stroke = { id: e.pointerId, type: e.pointerType, move: true, lx: e.clientX, ly: e.clientY, ox: refX, oy: refY, t: nowMs() };
+  } else if (t === 'drip') {
+    /* the dropper waits for the lift, so the press can be slid onto the right pixel first */
+    stroke = { id: e.pointerId, type: e.pointerType, pick: true, i: i, cx: e.clientX, cy: e.clientY, lifted: false, t: nowMs() };
+    $('hint').textContent = HINTS.drip;
+    loupeAim(i, e.clientX, e.clientY, e.pointerType, 'Lift to pick');
+  } else {
+    actOnce(i);
+  }
+}
+
+/* lifting on a pixel with a color picks it up; lifting off the board, on a transparent pixel, or after the tool was
+   changed picks nothing */
+function commitPick(s) {
+  var i = s.i, hex = i >= 0 ? px[i] : null;
+  loupeHide();
+  if (tool !== 'drip' || i < 0) return;
+  if (!hex) { $('hint').textContent = HINT_CLEAR; return; }
+  chooseColor(hex, false); /* also puts the previous drawing tool back */
+  loupeAim(i, s.cx, s.cy, s.type, 'Picked');
+  loupeLinger = true;
+  loupeTimer = setTimeout(loupeHide, 800);
+}
+
+/* keep = true commits the stroke as one undo step; keep = false puts the board back as it was */
+function finishStroke(keep) {
+  var s = stroke;
+  if (!s) return;
+  stroke = null;
+  if (s.pick) { if (keep && s.lifted) commitPick(s); else loupeHide(); }
+  else if (s.move) { if (!keep) { refX = s.ox; refY = s.oy; } saveRefPos(); } /* a cancelled slide puts the picture back */
+  else if (keep) { if (commit(s.prev) && s.tool === 'pen') addRecent(color); }
+  else px = s.prev;
+  draw();
+}
+
+function afterPointer(e) {
+  var i = e.pointerType === 'touch' ? -1 : cellAt(e);
+  if (stroke && stroke.pick && e.pointerId === stroke.id) i = stroke.i; /* show the pixel being aimed at, finger or not */
+  hover = i;
+  updateReadout(i);
+  draw();
+}
+
+/* Pencil or mouse hovering with the dropper: preview before pressing */
+function dropHover(e) {
+  clearTimeout(hoverTimer);
+  if (loupeLinger) return;
+  var i = cellAt(e);
+  if (i < 0) { loupe.hidden = true; return; }
+  loupeAim(i, e.clientX, e.clientY, e.pointerType, 'Tap to pick');
+  /* a Pencil lifted out of range may not report leaving: do not let the bubble hang around */
+  if (e.pointerType === 'pen') hoverTimer = setTimeout(function () { if (!stroke && !loupeLinger) loupe.hidden = true; }, 3000);
+}
+
+/* ---------- tap with two or three fingers: undo, redo ---------- */
+/* Two fingers that land together (within 120 ms) and lift together (within 150 ms of each other), quickly (under 0.4 s)
+   and without moving, undo one step; three fingers redo one. Fingers that land together never draw: anything the first
+   finger had started is rolled back, so the gesture cannot leave a stray pixel or use up the redo steps. A finger that
+   lands later, or after the first finger has already moved off, is just a second finger and is ignored while a stroke
+   runs, as before. Nothing counts while the Pencil is inking. The tick box under the board turns all of this off. */
+var TAPS_KEY = 'pixel-sixteen-taps-v1', tapsOn = true, tapsBox = $('taps');
+try { tapsOn = localStorage.getItem(TAPS_KEY) !== '0'; } catch (e) {}
+tapsBox.checked = tapsOn;
+tapsBox.addEventListener('change', function () {
+  tapsOn = tapsBox.checked;
+  tap = null;
+  try { localStorage.setItem(TAPS_KEY, tapsOn ? '1' : '0'); } catch (e) {}
+  flashHint(tapsOn ? 'Tap with 2 fingers to undo, 3 to redo.' : 'Finger taps for undo and redo are off.');
+});
+function tapDown(e, t) {
+  if (tap && t - tap.t0 > 2500) tap = null; /* a finger-up that never arrived */
+  if (!tap) {
+    tap = { t0: t, pts: {}, live: 0, n: 0, ok: true, mode: false, firstUp: -1,
+            base: { px: snap(), undo: undoStack.slice(), redo: redoStack.slice(), recent: recent.slice() } };
+  }
+  tap.pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+  tap.live++;
+  if (t - tap.t0 > TAP_JOIN_MS || !tap.ok) { tap.ok = false; return tap.mode; } /* a late finger, or one joining a finger that has moved off, is never part of a tap */
+  tap.n++;
+  if (tap.n >= 2 && !tap.mode) enterGesture();
+  return tap.mode;
+}
+function enterGesture() {
+  var b = tap.base;
+  tap.mode = true;
+  if (stroke) finishStroke(false);
+  var changed = undoStack.length !== b.undo.length || redoStack.length !== b.redo.length || !same(px, b.px) || recent.join() !== b.recent.join();
+  px = b.px; undoStack = b.undo; redoStack = b.redo; recent = b.recent;
+  hover = -1;
+  renderRecent(); refreshButtons(); draw(); updateReadout(-1);
+  if (changed) { save(); saveHist(); }
+}
+function tapMove(e) {
+  var p = tap && tap.pts[e.pointerId];
+  if (!p) return false;
+  if (Math.abs(e.clientX - p.x) > TAP_SLOP || Math.abs(e.clientY - p.y) > TAP_SLOP) tap.ok = false;
+  return tap.mode; /* the fingers of a gesture never draw */
+}
+function tapUp(e, cancelled) {
+  if (!tap || !tap.pts[e.pointerId]) return false;
+  var mode = tap.mode, t = nowMs();
+  delete tap.pts[e.pointerId];
+  tap.live--;
+  if (cancelled) tap.ok = false;
+  if (tap.firstUp < 0) tap.firstUp = t;
+  if (tap.live > 0) return mode;
+  var n = tap.n, fire = mode && tap.ok && t - tap.t0 <= TAP_MAX_MS && t - tap.firstUp <= TAP_LIFT_MS;
+  tap = null;
+  if (fire) { if (n === 2) stepHistory(true); else if (n === 3) stepHistory(false); }
+  return mode;
+}
+
 board.addEventListener('pointerdown', function (e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault();
+  var t = nowMs(), isPen = e.pointerType === 'pen';
+  if (isPen) { lastPenAt = lastInkAt = t; tap = null; }
+  else if (e.pointerType === 'touch') {
+    var palm = t - lastPenAt < PALM_MS || (stroke && stroke.type === 'pen' && t - stroke.t < PEN_HOLD_MS);
+    var inking = t - lastInkAt < INK_MS || (stroke && stroke.type === 'pen');
+    if (tapsOn && !inking && tapDown(e, t)) return; /* a second or third finger joined: a tap gesture, not drawing */
+    if (palm) return;
+  }
+  if (stroke) {
+    if (isPen && stroke.type === 'touch') finishStroke(false);
+    else if (t - stroke.t > STALE_MS) finishStroke(true);
+    else return;
+  }
   var i = cellAt(e);
   if (i < 0) return;
-  board.setPointerCapture(e.pointerId);
-  var prev = snap(), t = tool;
-  if (t === 'pen' || t === 'erase') {
-    stroke = { prev: prev, last: i, id: e.pointerId, tool: t };
-    paint(i);
-  } else if (t === 'fill') {
-    floodFill(i);
-    if (commit(prev)) addRecent(color);
-  } else if (t === 'clear') {
-    turnClear(i); commit(prev);
-  } else if (t === 'drip') {
-    if (px[i]) { chooseColor(px[i], false); setTool(prevDraw); }
-  } else if (t === 'move' && ref) {
-    stroke = { move: true, id: e.pointerId, lx: e.clientX, ly: e.clientY };
-  }
-  hover = e.pointerType === 'mouse' ? i : -1;
+  disarm();
+  try { board.setPointerCapture(e.pointerId); } catch (err) {}
+  blurOthers(board);
+  kbOn = false;
+  beginAt(i, e);
+  hover = e.pointerType === 'touch' && !(stroke && stroke.pick) ? -1 : i;
   draw(); updateReadout(i);
 });
 
 board.addEventListener('pointermove', function (e) {
-  var i = cellAt(e);
-  if (stroke && stroke.move && e.pointerId === stroke.id) {
-    var br = board.getBoundingClientRect();
-    refX += (e.clientX - stroke.lx) / br.width * S_PX;
-    refY += (e.clientY - stroke.ly) / br.height * S_PX;
-    stroke.lx = e.clientX; stroke.ly = e.clientY;
-  } else if (stroke && e.pointerId === stroke.id) {
-    var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
-    if (!evs.length) evs = [e];
-    for (var k = 0; k < evs.length; k++) {
-      var j = cellAt(evs[k]);
-      if (j >= 0 && j !== stroke.last) { line(stroke.last, j, paint); stroke.last = j; }
+  if (e.pointerType === 'pen') { lastPenAt = nowMs(); if (e.buttons) lastInkAt = lastPenAt; }
+  else if (e.pointerType === 'touch' && tapMove(e)) return;
+  if (stroke) {
+    if (e.pointerId !== stroke.id) return;
+    stroke.t = nowMs();
+    if (stroke.pick) {
+      stroke.i = cellAt(e); stroke.cx = e.clientX; stroke.cy = e.clientY;
+      loupeAim(stroke.i, e.clientX, e.clientY, e.pointerType, 'Lift to pick');
+    } else if (stroke.move) {
+      var br = board.getBoundingClientRect();
+      refX += (e.clientX - stroke.lx) / br.width * S_PX;
+      refY += (e.clientY - stroke.ly) / br.height * S_PX;
+      stroke.lx = e.clientX; stroke.ly = e.clientY;
+    } else {
+      var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+      if (!evs.length) evs = [e];
+      for (var k = 0; k < evs.length; k++) {
+        var p = cellXY(evs[k]);
+        if (p[0] !== stroke.lx || p[1] !== stroke.ly) {
+          line(stroke.lx, stroke.ly, p[0], p[1], paintXY);
+          stroke.lx = p[0]; stroke.ly = p[1];
+        }
+      }
     }
+  } else if (tool === 'drip' && e.pointerType !== 'touch') {
+    dropHover(e);
   }
-  hover = e.pointerType === 'mouse' ? i : -1;
-  draw(); updateReadout(i);
+  kbOn = false;
+  afterPointer(e);
 });
 
-function endStroke(e) {
+board.addEventListener('pointerup', function (e) {
+  if (e.pointerType === 'pen') lastPenAt = lastInkAt = nowMs();
+  else if (e.pointerType === 'touch' && tapUp(e, false)) return;
   if (stroke && e.pointerId === stroke.id) {
-    if (stroke.move) saveRefPos();
-    else if (commit(stroke.prev) && stroke.tool === 'pen') addRecent(color);
-    stroke = null;
+    if (stroke.pick) { stroke.i = cellAt(e); stroke.cx = e.clientX; stroke.cy = e.clientY; stroke.lifted = true; }
+    finishStroke(true);
   }
-  if (e.pointerType !== 'mouse') { hover = -1; updateReadout(-1); }
-  draw();
-}
-board.addEventListener('pointerup', endStroke);
-board.addEventListener('pointercancel', endStroke);
-board.addEventListener('pointerleave', function (e) {
-  if (!stroke) { hover = -1; draw(); updateReadout(-1); }
+  afterPointer(e);
+});
+board.addEventListener('pointercancel', function (e) {
+  if (e.pointerType === 'touch' && tapUp(e, true)) return;
+  if (stroke && e.pointerId === stroke.id) finishStroke(false);
+  afterPointer(e);
+});
+board.addEventListener('lostpointercapture', function (e) {
+  if (stroke && e.pointerId === stroke.id) { finishStroke(true); afterPointer(e); }
+});
+board.addEventListener('pointerleave', function () {
+  if (stroke) return;
+  if (!loupeLinger) loupe.hidden = true;
+  hover = kbOn ? kb : -1; draw(); updateReadout(hover);
 });
 board.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+/* the app is switched away from or closed in the middle of a stroke: keep what was drawn */
+function interrupted() {
+  loupeHide();
+  tap = null;
+  if (!stroke) return;
+  finishStroke(true);
+  hover = -1; draw(); updateReadout(-1);
+}
+window.addEventListener('blur', interrupted);
+window.addEventListener('pagehide', interrupted);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') interrupted(); else refit();
+});
+
+/* keyboard: Tab to the board, arrows move a cursor, Space or Enter uses the current tool there */
+board.addEventListener('keydown', function (e) {
+  var k = e.key, d = null;
+  if (k === 'ArrowLeft') d = [-1, 0]; else if (k === 'ArrowRight') d = [1, 0];
+  else if (k === 'ArrowUp') d = [0, -1]; else if (k === 'ArrowDown') d = [0, 1];
+  if (d) {
+    e.preventDefault();
+    if (stroke || e.metaKey || e.ctrlKey || e.altKey) return;
+    kb = Math.max(0, Math.min(N - 1, ((kb / N) | 0) + d[1])) * N + Math.max(0, Math.min(N - 1, kb % N + d[0]));
+    kbOn = true; hover = kb; draw(); updateReadout(kb);
+  } else if (k === ' ' || k === 'Spacebar' || k === 'Enter') {
+    e.preventDefault();
+    if (stroke || e.repeat) return;
+    kbOn = true; hover = kb;
+    actOnce(kb); draw(); updateReadout(kb);
+  } else if (k === 'Escape') {
+    board.blur();
+  }
+});
+board.addEventListener('focus', function () {
+  var visible = false;
+  try { visible = board.matches(':focus-visible'); } catch (err) {}
+  if (visible) { kbOn = true; hover = kb; draw(); updateReadout(kb); }
+});
+board.addEventListener('blur', function () {
+  if (!kbOn) return;
+  kbOn = false; hover = -1; draw(); updateReadout(-1);
+});
 
 /* ---------- export ---------- */
 var dl = null, dlReady = false;
@@ -870,14 +1433,19 @@ $('download').addEventListener('click', function () {
 });
 
 /* ---------- clear board (two taps) ---------- */
-var wipeTimer = null;
+var wipeTimer = null, wipeArmedAt = 0;
 $('wipe').addEventListener('click', function () {
+  if (stroke) return;
   var b = $('wipe');
   if (!b.classList.contains('armed')) {
-    b.classList.add('armed'); b.textContent = 'Tap again to clear';
+    b.classList.add('armed');
+    b.setAttribute('aria-label', 'Tap again to clear the whole board');
+    $('wipe-label').textContent = 'Tap again';
+    wipeArmedAt = nowMs();
     wipeTimer = setTimeout(disarm, 3000);
     return;
   }
+  if (nowMs() - wipeArmedAt < 350) return; /* an accidental double tap is not the confirmation */
   disarm();
   var prev = snap();
   px = new Array(N * N).fill(null);
@@ -885,7 +1453,11 @@ $('wipe').addEventListener('click', function () {
 });
 function disarm() {
   clearTimeout(wipeTimer);
-  var b = $('wipe'); b.classList.remove('armed'); b.textContent = 'Clear board';
+  var b = $('wipe');
+  if (!b.classList.contains('armed')) return;
+  b.classList.remove('armed');
+  b.setAttribute('aria-label', 'Clear the whole board');
+  $('wipe-label').textContent = 'Clear';
 }
 
 /* ---------- keyboard ---------- */
@@ -893,8 +1465,8 @@ var KEYS = { p: 'pen', e: 'erase', f: 'fill', i: 'drip', t: 'clear' };
 document.addEventListener('keydown', function (e) {
   if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
   var mod = e.metaKey || e.ctrlKey, k = (e.key || '').toLowerCase();
-  if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
-  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && k === 'z') { e.preventDefault(); stepHistory(!e.shiftKey); return; }
+  if (mod && k === 'y') { e.preventDefault(); stepHistory(false); return; }
   if (mod || e.altKey) return;
   if (KEYS[k]) setTool(KEYS[k]); else if (k === 'g') setGrid(!showGrid);
 });
@@ -1061,7 +1633,7 @@ function mergeInto(o, p) {
   o.lab = [(o.lab[0] * o.w + p.lab[0] * p.w) / w, (o.lab[1] * o.w + p.lab[1] * p.w) / w, (o.lab[2] * o.w + p.lab[2] * p.w) / w];
   o.w = w;
 }
-/* greedy: join each colour to the nearest existing one when they are nearly the same */
+/* greedy: join each color to the nearest existing one when they are nearly the same */
 function clusterColors(items, thr) {
   var out = [];
   items.forEach(function (it) {
@@ -1075,7 +1647,7 @@ function clusterColors(items, thr) {
   });
   return out;
 }
-/* merge the pair that costs the least detail until only `target` colours remain; small, close pairs go first */
+/* merge the pair that costs the least detail until only `target` colors remain; small, close pairs go first */
 function wardReduce(list, target) {
   while (list.length > target) {
     var bi = 0, bj = 1, bc = Infinity, i, j;
@@ -1102,7 +1674,7 @@ function pixelize(maxColors, limit3) {
   cx.drawImage(ref, refX * k, refY * k, dn[0] * refScale * k, dn[1] * refScale * k);
   var data = cx.getImageData(0, 0, W, W).data;
 
-  /* 1. one dominant colour per cell (mode, not average) */
+  /* 1. one dominant color per cell (mode, not average) */
   var T = [], R = [], G = [], B = [];
   for (y = 0; y < N; y++) {
     for (x = 0; x < N; x++) {
@@ -1123,7 +1695,7 @@ function pixelize(maxColors, limit3) {
     }
   }
 
-  /* 2. transparent background: alpha, black, or the flat colour around the edge */
+  /* 2. transparent background: alpha, black, or the flat color around the edge */
   var tol = 40;
   function near(i2, c) {
     var a = R[i2] - c[0], b = G[i2] - c[1], e = B[i2] - c[2];
@@ -1166,7 +1738,7 @@ function pixelize(maxColors, limit3) {
     }
   }
 
-  /* 3. palette: merge near-duplicates, optional 3 shades per colour, then the colour cap */
+  /* 3. palette: merge near-duplicates, optional 3 shades per color, then the color cap */
   var fg = [], items = [];
   for (i = 0; i < N * N; i++) {
     if (T[i]) continue;
@@ -1206,7 +1778,7 @@ function pixelize(maxColors, limit3) {
     finalPal.push({ hex: hex, lab: toLab(rc[0], rc[1], rc[2]) });
   });
 
-  /* 5. map each cell to its nearest palette colour */
+  /* 5. map each cell to its nearest palette color */
   var idx = new Array(N * N).fill(-1);
   fg.forEach(function (ci) {
     var lab = toLab(R[ci], G[ci], B[ci]), bi = 0, bd = Infinity, q;
@@ -1273,7 +1845,7 @@ pixLimit.addEventListener('click', function () {
   pixShow(); pixSave();
 });
 $('pix-go').addEventListener('click', function () {
-  if (!ref) return;
+  if (!ref || stroke) return;
   var res;
   try { res = pixelize(+pixColors.value, pixLimit.getAttribute('aria-pressed') === 'true'); }
   catch (e) { $('pix-note').textContent = 'Could not pixelize that image. Try a different one.'; return; }
@@ -1292,13 +1864,28 @@ if (!load()) {
     var ch = HEART[r].charAt(c);
     px[r * N + c] = HEART_COLORS[ch] || null;
   }
+} else {
+  loadHist();
 }
 $('grid').setAttribute('aria-pressed', showGrid ? 'true' : 'false');
 renderRecent();
 setColor(color, false);
 setTool('pen');
 refreshButtons();
+function refit() { sizeBoard(); sizeWheel(); }
+sizeBoard();
+sizeWheel();
 draw();
+if (window.ResizeObserver) { var fitWatch = new ResizeObserver(refit); fitWatch.observe(board.parentNode); fitWatch.observe(wheel); }
+window.addEventListener('resize', refit);
+window.addEventListener('orientationchange', refit);
+/* the screen density can change while the app is open (a window moved to another display): resize the board when it does */
+(function watchDensity() {
+  if (!window.matchMedia) return;
+  var mq = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+  if (!mq.addEventListener) return;
+  mq.addEventListener('change', function () { refit(); watchDensity(); }, { once: true });
+})();
 
 })();
 </script>
