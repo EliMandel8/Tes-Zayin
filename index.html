@@ -301,13 +301,22 @@ h1 {
   font-weight: 500; font-size: 14px;
 }
 .toast { margin: 0; min-height: 1.4em; font-size: 13px; color: var(--muted); }
+.export-pic { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.export-pic[hidden] { display: none; }
+.export-pic img {
+  width: min(100%, 288px); aspect-ratio: 1; image-rendering: pixelated;
+  border: 1.5px solid var(--line); border-radius: 6px;
+  background: repeating-conic-gradient(var(--line) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px;
+}
+.export-pic .quiet { align-self: stretch; }
 
 .slider-row { display: flex; align-items: center; gap: 10px; }
 .slider-row label { width: 58px; flex: none; font-size: 12px; color: var(--muted); }
 .slider-row input[type="range"] { flex: 1; min-width: 0; height: 28px; margin: 0; accent-color: var(--accent); touch-action: pan-y; }
 .ref-controls { display: flex; flex-direction: column; gap: 12px; }
-.seg4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.seg4 .btn { min-width: 0; min-height: 44px; flex-direction: row; font-size: 13px; padding: 6px 4px; }
+.seg3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.quiet.armed { border-color: var(--danger); color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.seg3 .btn { min-width: 0; min-height: 44px; flex-direction: row; font-size: 13px; padding: 6px 4px; }
 
 .nav { margin-left: auto; color: var(--accent); font-weight: 600; text-decoration: none; padding: 6px 2px; }
 .nav:hover { text-decoration: underline; }
@@ -357,6 +366,9 @@ h1 {
         </button>
         <button class="btn" id="t-clear" data-tool="clear" aria-pressed="false" title="Turn a color transparent (T)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h8V4M12 20v-8h8"/></svg>Transparent
+        </button>
+        <button class="btn" id="t-move" data-tool="move" aria-pressed="false" title="Move the trace image (M)" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>Move
         </button>
       </div>
       <div class="group">
@@ -416,8 +428,7 @@ h1 {
       <div class="ref-controls" id="ref-controls" hidden>
         <div class="slider-row"><label for="ref-op">Opacity</label><input type="range" id="ref-op" min="10" max="100" value="50"></div>
         <div class="slider-row"><label for="ref-size">Size</label><input type="range" id="ref-size" min="20" max="600" value="100"></div>
-        <div class="seg4">
-          <button class="btn" type="button" data-tool="move" aria-pressed="false" title="Drag the image on the board (M)">Move</button>
+        <div class="seg3">
           <button class="btn" type="button" id="ref-fit">Fit</button>
           <button class="btn" type="button" id="ref-fill">Fill</button>
           <button class="btn" type="button" id="ref-eye" aria-pressed="true">Show</button>
@@ -432,7 +443,7 @@ h1 {
         </div>
         <button class="quiet" id="ref-remove" type="button">Remove image</button>
       </div>
-      <p class="sub" id="ref-note">The board is the crop frame. Use Move and Size to choose which part of the picture shows inside it. The image is not part of the PNG.</p>
+      <p class="sub" id="ref-note">The board is the crop frame. Use Move (in the toolbar above the board) and Size to choose which part of the picture shows inside it. The dropper picks colors from the picture. The image is not part of the PNG.</p>
     </section>
 
     <section class="card" aria-label="Export">
@@ -444,6 +455,10 @@ h1 {
       </div>
       <button class="primary" id="download">Download PNG</button>
       <p class="toast" id="toast" role="status" aria-live="polite">Transparent pixels stay transparent in the file.</p>
+      <figure class="export-pic" id="export-pic" hidden>
+        <img id="export-img" alt="">
+        <button class="quiet" id="export-close" type="button">Close picture</button>
+      </figure>
     </section>
   </aside>
 </div>
@@ -608,6 +623,41 @@ function frame(x, y, w, h, t, col) {
   bctx.fillRect(x + w - t, y + t, t, h - 2 * t);
 }
 
+/* what shows through where a pixel is empty (the checkerboard, and the trace image on it), drawn over cell i at alpha a */
+function drawBackdrop(i, a) {
+  var cx = (i % N) * cell, cy = ((i / N) | 0) * cell;
+  bctx.globalAlpha = a;
+  bctx.drawImage(bgLayer, cx, cy, cell, cell, cx, cy, cell, cell);
+  if (ref && refShow) {
+    var k = cell * N / S_PX, sc = refScale * k; /* screen pixels per picture pixel */
+    bctx.globalAlpha = a * refOpacity;
+    try { bctx.drawImage(ref, (cx - refX * k) / sc, (cy - refY * k) / sc, cell / sc, cell / sc, cx, cy, cell, cell); } catch (e) {}
+  }
+  bctx.globalAlpha = 1;
+}
+
+/* The trace picture's color under board pixel i: what the dropper picks on an empty pixel. null where the picture is
+   missing or hidden, or covers less than half of the pixel. Transparent parts of the picture count for nothing. */
+var sampleCv = null, sampleCx = null;
+function sampleRef(i) {
+  if (!ref || !refShow) return null;
+  var T = 16, cs = S_PX / N, k = 1 / refScale, d, j, r = 0, g = 0, b = 0, a = 0;
+  if (!sampleCv) {
+    sampleCv = document.createElement('canvas');
+    sampleCv.width = sampleCv.height = T;
+    sampleCx = sampleCv.getContext('2d', { willReadFrequently: true });
+    sampleCx.imageSmoothingQuality = 'high';
+  }
+  sampleCx.clearRect(0, 0, T, T);
+  try {
+    sampleCx.drawImage(ref, ((i % N) * cs - refX) * k, (((i / N) | 0) * cs - refY) * k, cs * k, cs * k, 0, 0, T, T);
+    d = sampleCx.getImageData(0, 0, T, T).data;
+  } catch (e) { return null; }
+  for (j = 0; j < d.length; j += 4) { r += d[j] * d[j + 3]; g += d[j + 1] * d[j + 3]; b += d[j + 2] * d[j + 3]; a += d[j + 3]; }
+  if (a / (255 * T * T) < 0.5) return null;
+  return rgbToHex(Math.round(r / a), Math.round(g / a), Math.round(b / a));
+}
+
 function draw() {
   if (!bgLayer) return;
   var size = cell * N, i, x, y;
@@ -632,6 +682,19 @@ function draw() {
   if (hover >= 0) {
     var u = Math.max(1, Math.round(dpr));
     x = (hover % N) * cell; y = ((hover / N) | 0) * cell;
+    if (tool === 'erase' && px[hover]) { /* preview: the pixel Erase would take away is shown half-erased */
+      drawBackdrop(hover, 0.6);
+    } else if (tool === 'clear' && px[hover]) {
+      /* preview: every pixel of that color is shown half-erased and outlined, so what will go is plain to see */
+      var target = px[hover], cx, cy;
+      for (i = 0; i < px.length; i++) {
+        if (px[i] !== target) continue;
+        cx = (i % N) * cell; cy = ((i / N) | 0) * cell;
+        drawBackdrop(i, 0.6);
+        frame(cx, cy, cell, cell, u, '#FFFFFF');
+        frame(cx + u, cy + u, cell - 2 * u, cell - 2 * u, u, '#000000');
+      }
+    }
     frame(x, y, cell, cell, 4 * u, '#FFFFFF');
     frame(x + u, y + u, cell - 2 * u, cell - 2 * u, 2 * u, '#000000');
   }
@@ -719,7 +782,8 @@ function redo() {
 }
 
 /* ---------- tool actions ---------- */
-function paint(i) { px[i] = tool === 'erase' ? null : color; }
+/* a stroke keeps the tool it started with, even if another tool is picked while the finger or Pencil is still down */
+function paint(i) { px[i] = (stroke && stroke.tool ? stroke.tool : tool) === 'erase' ? null : color; }
 function paintXY(x, y) { if (x >= 0 && y >= 0 && x < N && y < N) paint(y * N + x); }
 
 function floodFill(i) {
@@ -738,10 +802,27 @@ function floodFill(i) {
   }
 }
 
+/* how many pixels have this color */
+function countColor(hex) {
+  var n = 0;
+  for (var j = 0; j < px.length; j++) if (px[j] === hex) n++;
+  return n;
+}
+/* every pixel of the color at cell i becomes transparent; returns how many did */
 function turnClear(i) {
-  var target = px[i];
-  if (!target) return;
-  for (var j = 0; j < px.length; j++) if (px[j] === target) px[j] = null;
+  var target = px[i], n = 0;
+  if (!target) return 0;
+  for (var j = 0; j < px.length; j++) if (px[j] === target) { px[j] = null; n++; }
+  return n;
+}
+/* Transparent tool, one go: one undo step, and a message that says what happened */
+function clearColorAt(i) {
+  var hex = px[i];
+  if (!hex) { flashHint(HINT_NOCLEAR); return false; }
+  var prev = snap(), n = turnClear(i);
+  commit(prev);
+  flashHint(clearedMsg(hex, n));
+  return true;
 }
 
 function addRecent(hex) {
@@ -757,14 +838,17 @@ function actOnce(i) {
   var prev = snap(), t = tool;
   if (t === 'pen' || t === 'erase') {
     paint(i);
-    if (commit(prev) && t === 'pen') addRecent(color);
+    var changed = commit(prev);
+    if (changed && t === 'pen') addRecent(color);
+    else if (!changed && t === 'erase') flashHint(HINT_NOERASE_ONE);
   } else if (t === 'fill') {
     floodFill(i);
     if (commit(prev)) addRecent(color);
   } else if (t === 'clear') {
-    turnClear(i); commit(prev);
+    clearColorAt(i);
   } else if (t === 'drip') {
-    if (px[i]) chooseColor(px[i], false); /* also puts the previous drawing tool back */
+    var pick = px[i] || sampleRef(i);
+    if (pick) chooseColor(pick, false); /* also puts the previous drawing tool back */
     else $('hint').textContent = HINT_CLEAR;
   }
 }
@@ -978,8 +1062,9 @@ function renderRecent() {
 }
 (function () { var box = $('palette'); PALETTE.forEach(function (c) { box.appendChild(makeSwatch(c)); }); })();
 
-/* ---------- dropper preview ---------- */
-/* While the dropper is aimed, a small bubble above the finger, Pencil or mouse shows the color that lifting would pick up. */
+/* ---------- dropper and Transparent preview ---------- */
+/* While the dropper or the Transparent tool is aimed, a small bubble above the finger, Pencil or mouse shows what lifting
+   would do: the color it would pick up, or the color it would turn transparent and how many pixels that takes. */
 var loupe = $('loupe'), loupeChip = $('loupe-chip'), loupeMain = $('loupe-main'), loupeSub = $('loupe-sub');
 var loupeTimer = 0, loupeLinger = false, hoverTimer = 0;
 function loupeHide() {
@@ -995,36 +1080,59 @@ function loupeMove(x, y, type) {
   if (ly < 8) ly = Math.max(8, Math.min(window.innerHeight - h - 8, y + gap)); /* no room above: go below */
   loupe.style.transform = 'translate(' + Math.round(lx) + 'px,' + Math.round(ly) + 'px)';
 }
+/* what the bubble says under the color, by tool and by phase: 'lift' while pressed, 'tap' while hovering, 'done' just after */
+var LOUPE_VERB = {
+  drip: { lift: 'Lift to pick', tap: 'Tap to pick', done: 'Picked' },
+  pic: { lift: 'Lift to pick from the picture', tap: 'Tap to pick from the picture', done: 'Picked from the picture' },
+  clear: { lift: 'Lift to clear', tap: 'Tap to clear', done: 'Cleared' }
+};
 /* cell i is the one under the pointer; -1 means the pointer is off the board */
-function loupeAim(i, x, y, type, sub) {
+function loupeAim(i, x, y, type, phase) {
   clearTimeout(loupeTimer);
   loupeLinger = false;
-  var kind = i < 0 ? 'off' : px[i] ? 'color' : 'clear';
+  var t = stroke && stroke.pick ? stroke.tool : tool, col = i >= 0 ? px[i] : null, viaPic = false, kind, sub;
+  if (i >= 0 && !col && t !== 'clear') { col = sampleRef(i); viaPic = !!col; } /* the dropper reads the trace picture on an empty pixel */
+  kind = i < 0 ? 'off' : col ? 'color' : 'clear';
+  if (kind === 'off') sub = 'Lift to cancel';
+  else if (kind === 'clear') sub = t === 'clear' ? 'Already transparent' : 'Nothing to pick up';
+  else if (t === 'clear') { var n = countColor(col); sub = LOUPE_VERB.clear[phase] + ' ' + n + (n === 1 ? ' pixel' : ' pixels'); }
+  else sub = (viaPic ? LOUPE_VERB.pic : LOUPE_VERB.drip)[phase];
   loupe.className = 'loupe ' + kind;
-  loupeChip.style.background = kind === 'color' ? px[i] : '';
-  loupeMain.textContent = kind === 'color' ? px[i] : kind === 'clear' ? 'Transparent' : 'Off the board';
-  loupeSub.textContent = kind === 'off' ? 'Lift to cancel' : kind === 'clear' ? 'Nothing to pick up' : sub;
+  loupeChip.style.background = kind === 'color' ? col : '';
+  loupeMain.textContent = kind === 'color' ? col : kind === 'clear' ? 'Transparent' : 'Off the board';
+  loupeSub.textContent = sub;
   loupe.hidden = false;
   loupeMove(x, y, type);
 }
 
 /* ---------- tools ---------- */
+var HINT_NOERASE_ONE = 'That pixel is already transparent.', HINT_NOERASE_MANY = 'Nothing to erase there. Already transparent.';
 var HINT_CLEAR = 'That pixel is transparent, so there is no color to pick up. Press another pixel.';
+var HINT_NOCLEAR = 'That pixel is already transparent. Press a pixel that has a color.';
+var HINT_CLEAR_CANCEL = 'Canceled. Nothing was turned transparent.';
+function clearedMsg(hex, n) { return n + (n === 1 ? ' pixel' : ' pixels') + ' of ' + hex + ' turned transparent.'; }
 var HINTS = {
   pen: 'Tap or drag to paint with the current color.',
   erase: 'Tap or drag to erase pixels back to transparent.',
   fill: 'Tap a pixel to fill the connected area with the current color.',
   drip: 'Press a pixel and slide to aim. Lift to pick up its color.',
-  clear: 'Tap a pixel to turn every pixel of that color transparent.',
-  move: 'Drag on the board to slide the trace image into place.'
+  clear: 'Press a pixel and slide to aim. Lift to turn every pixel of that color transparent.',
+  move: 'Drag on the board to slide the trace image into place, or use the arrow keys. Tap Move again to go back to drawing.'
 };
+/* the hint for a tool; the dropper also reads the trace picture, when one is showing */
+function toolHint(t) {
+  if (t === 'drip' && ref && refShow) return HINTS.drip + ' On an empty pixel it picks the trace picture\'s color.';
+  return HINTS[t] || '';
+}
 function setTool(t) {
   tool = t;
   loupeHide();
+  if (t === 'move' && ref && !refShow) { refShow = true; syncRefUI(); saveRefPos(); } /* moving a hidden picture would be a puzzle */
   if (t === 'pen' || t === 'fill') prevDraw = t;
   var btns = document.querySelectorAll('[data-tool]');
   for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].dataset.tool === t ? 'true' : 'false');
-  $('hint').textContent = HINTS[t];
+  $('hint').textContent = toolHint(t);
+  draw(); /* a pointer or keyboard cursor already on the board gets the new tool's preview at once */
 }
 Array.prototype.forEach.call(document.querySelectorAll('[data-tool]'), function (b) {
   b.addEventListener('click', function () {
@@ -1043,7 +1151,7 @@ function flashHint(msg) {
   var h = $('hint');
   clearTimeout(flashTimer);
   h.textContent = msg;
-  flashTimer = setTimeout(function () { if (h.textContent === msg) h.textContent = HINTS[tool] || ''; }, 2200);
+  flashTimer = setTimeout(function () { if (h.textContent === msg) h.textContent = toolHint(tool); }, 2200);
 }
 function sayHistory(undoing, moved) {
   var w = undoing ? 'undo' : 'redo', n = undoing ? undoStack.length : redoStack.length;
@@ -1112,36 +1220,41 @@ function nowMs() { return window.performance && performance.now ? performance.no
 function updateReadout(i) {
   if (i < 0) { $('cell').textContent = 'Touch the board'; $('cellchip').style.background = 'transparent'; return; }
   var c = px[i];
-  $('cell').textContent = 'x ' + (i % N) + '  y ' + ((i / N) | 0) + '  ' + (c || 'clear');
+  $('cell').textContent = 'x ' + (i % N) + '  y ' + ((i / N) | 0) + '  ' + (c || 'transparent');
   $('cellchip').style.background = c || 'transparent';
 }
 
 function beginAt(i, e) {
   var t = tool;
   if (t === 'pen' || t === 'erase') {
-    stroke = { id: e.pointerId, type: e.pointerType, tool: t, prev: snap(), lx: i % N, ly: (i / N) | 0, t: nowMs() };
+    stroke = { id: e.pointerId, type: e.pointerType, tool: t, prev: snap(), lx: i % N, ly: (i / N) | 0, moved: false, t: nowMs() };
     paint(i);
   } else if (t === 'move') {
     if (ref) stroke = { id: e.pointerId, type: e.pointerType, move: true, lx: e.clientX, ly: e.clientY, ox: refX, oy: refY, t: nowMs() };
-  } else if (t === 'drip') {
-    /* the dropper waits for the lift, so the press can be slid onto the right pixel first */
-    stroke = { id: e.pointerId, type: e.pointerType, pick: true, i: i, cx: e.clientX, cy: e.clientY, lifted: false, t: nowMs() };
-    $('hint').textContent = HINTS.drip;
-    loupeAim(i, e.clientX, e.clientY, e.pointerType, 'Lift to pick');
+  } else if (t === 'drip' || t === 'clear') {
+    /* the dropper and Transparent wait for the lift, so the press can be slid onto the right pixel first */
+    stroke = { id: e.pointerId, type: e.pointerType, tool: t, pick: true, i: i, cx: e.clientX, cy: e.clientY, lifted: false, t: nowMs() };
+    $('hint').textContent = toolHint(t);
+    loupeAim(i, e.clientX, e.clientY, e.pointerType, 'lift');
   } else {
     actOnce(i);
   }
 }
 
-/* lifting on a pixel with a color picks it up; lifting off the board, on a transparent pixel, or after the tool was
-   changed picks nothing */
+/* Lifting on a pixel with a color picks it up (dropper) or turns every pixel of that color transparent (Transparent).
+   Lifting off the board, on a transparent pixel, or after the tool was changed does nothing. */
 function commitPick(s) {
-  var i = s.i, hex = i >= 0 ? px[i] : null;
+  var i = s.i, hex = i >= 0 ? (px[i] || sampleRef(i)) : null; /* an empty pixel gives the trace picture's color, if there is one */
   loupeHide();
-  if (tool !== 'drip' || i < 0) return;
+  if (tool !== s.tool) return;
+  if (s.tool === 'clear') {
+    if (i < 0) flashHint(HINT_CLEAR_CANCEL); else clearColorAt(i);
+    return;
+  }
+  if (i < 0) return;
   if (!hex) { $('hint').textContent = HINT_CLEAR; return; }
   chooseColor(hex, false); /* also puts the previous drawing tool back */
-  loupeAim(i, s.cx, s.cy, s.type, 'Picked');
+  loupeAim(i, s.cx, s.cy, s.type, 'done');
   loupeLinger = true;
   loupeTimer = setTimeout(loupeHide, 800);
 }
@@ -1151,9 +1264,16 @@ function finishStroke(keep) {
   var s = stroke;
   if (!s) return;
   stroke = null;
-  if (s.pick) { if (keep && s.lifted) commitPick(s); else loupeHide(); }
+  if (s.pick) {
+    if (keep && s.lifted) commitPick(s);
+    else { loupeHide(); if (s.tool === 'clear' && tool === 'clear') flashHint(HINT_CLEAR_CANCEL); } /* a press that was cut short */
+  }
   else if (s.move) { if (!keep) { refX = s.ox; refY = s.oy; } saveRefPos(); } /* a cancelled slide puts the picture back */
-  else if (keep) { if (commit(s.prev) && s.tool === 'pen') addRecent(color); }
+  else if (keep) {
+    var changed = commit(s.prev);
+    if (changed && s.tool === 'pen') addRecent(color);
+    else if (!changed && s.tool === 'erase') flashHint(s.moved ? HINT_NOERASE_MANY : HINT_NOERASE_ONE);
+  }
   else px = s.prev;
   draw();
 }
@@ -1166,15 +1286,19 @@ function afterPointer(e) {
   draw();
 }
 
-/* Pencil or mouse hovering with the dropper: preview before pressing */
+/* Pencil or mouse hovering with the dropper or Transparent: preview before pressing */
 function dropHover(e) {
   clearTimeout(hoverTimer);
   if (loupeLinger) return;
   var i = cellAt(e);
   if (i < 0) { loupe.hidden = true; return; }
-  loupeAim(i, e.clientX, e.clientY, e.pointerType, 'Tap to pick');
-  /* a Pencil lifted out of range may not report leaving: do not let the bubble hang around */
-  if (e.pointerType === 'pen') hoverTimer = setTimeout(function () { if (!stroke && !loupeLinger) loupe.hidden = true; }, 3000);
+  loupeAim(i, e.clientX, e.clientY, e.pointerType, 'tap');
+  /* a Pencil lifted out of range may not report leaving: do not let the bubble, or the preview on the board, hang around */
+  if (e.pointerType === 'pen') hoverTimer = setTimeout(function () {
+    if (stroke || loupeLinger) return;
+    loupe.hidden = true;
+    if (!kbOn && hover >= 0) { hover = -1; draw(); updateReadout(-1); }
+  }, 3000);
 }
 
 /* ---------- tap with two or three fingers: undo, redo ---------- */
@@ -1270,7 +1394,7 @@ board.addEventListener('pointermove', function (e) {
     stroke.t = nowMs();
     if (stroke.pick) {
       stroke.i = cellAt(e); stroke.cx = e.clientX; stroke.cy = e.clientY;
-      loupeAim(stroke.i, e.clientX, e.clientY, e.pointerType, 'Lift to pick');
+      if (stroke.tool === tool) loupeAim(stroke.i, e.clientX, e.clientY, e.pointerType, 'lift'); /* not after the tool was changed */
     } else if (stroke.move) {
       var br = board.getBoundingClientRect();
       refX += (e.clientX - stroke.lx) / br.width * S_PX;
@@ -1283,11 +1407,11 @@ board.addEventListener('pointermove', function (e) {
         var p = cellXY(evs[k]);
         if (p[0] !== stroke.lx || p[1] !== stroke.ly) {
           line(stroke.lx, stroke.ly, p[0], p[1], paintXY);
-          stroke.lx = p[0]; stroke.ly = p[1];
+          stroke.lx = p[0]; stroke.ly = p[1]; stroke.moved = true;
         }
       }
     }
-  } else if (tool === 'drip' && e.pointerType !== 'touch') {
+  } else if ((tool === 'drip' || tool === 'clear') && e.pointerType !== 'touch') {
     dropHover(e);
   }
   kbOn = false;
@@ -1340,6 +1464,12 @@ board.addEventListener('keydown', function (e) {
   if (d) {
     e.preventDefault();
     if (stroke || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (tool === 'move' && ref) { /* the arrows slide the picture: a quarter pixel, or a whole pixel with Shift */
+      var st = (e.shiftKey ? 1 : 0.25) * S_PX / N;
+      refX += d[0] * st; refY += d[1] * st;
+      saveRefPos(); draw();
+      return;
+    }
     kb = Math.max(0, Math.min(N - 1, ((kb / N) | 0) + d[1])) * N + Math.max(0, Math.min(N - 1, kb % N + d[0]));
     kbOn = true; hover = kb; draw(); updateReadout(kb);
   } else if (k === ' ' || k === 'Spacebar' || k === 'Enter') {
@@ -1369,29 +1499,93 @@ var dl = null, dlReady = false;
   Promise.resolve(p).then(function (api) { dl = api || null; }, function () { dl = null; })
     .then(function () {
       dlReady = true;
-      /* outside Claude there is no capability: saveBlob falls back to the share sheet or a plain download */
+      showExportHint();
     });
 })();
 
 function say(msg) { $('toast').textContent = msg; }
 
-function saveBlob(blob, filename) {
-  if (dl) return dl.save({ filename: filename, data: blob });
-  var file = null;
-  try { file = new File([blob], filename, { type: 'image/png' }); } catch (e) {}
-  var canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
-  function plain() {
-    var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
-    return Promise.resolve();
-  }
-  if (!canShare) return plain();
-  return navigator.share({ files: [file], title: filename }).catch(function (e) {
-    if (e && e.name === 'AbortError') return Promise.reject({ code: 'declined' });
-    return plain();
+/* The size you chose is kept for next time. */
+var SIZE_KEY = 'pixel-sixteen-size-v1';
+function showSize() {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-size]'), function (o) {
+    o.setAttribute('aria-pressed', parseInt(o.dataset.size, 10) === exportSize ? 'true' : 'false');
   });
+}
+(function () {
+  var v = null;
+  try { v = parseInt(localStorage.getItem(SIZE_KEY), 10); } catch (e) {}
+  if (v === 16 || v === 128 || v === 512) exportSize = v;
+  showSize();
+})();
+Array.prototype.forEach.call(document.querySelectorAll('[data-size]'), function (b) {
+  b.addEventListener('click', function () {
+    exportSize = parseInt(b.dataset.size, 10);
+    showSize();
+    try { localStorage.setItem(SIZE_KEY, String(exportSize)); } catch (e) {}
+  });
+});
+
+/* How the file leaves the app:
+   claude    the page runs inside Claude, which has its own save step
+   share     a touch device whose share sheet takes files (iPad Safari): Save to Files or Save Image
+   picture   an installed iPad app with no share sheet: a normal download would replace the app with the picture,
+             so the picture is shown to press and hold
+   download  everything else: an ordinary download */
+function shareTakesFiles() {
+  try {
+    if (!navigator.share || !navigator.canShare || !(navigator.maxTouchPoints > 1)) return false;
+    if (!(window.matchMedia && matchMedia('(pointer: coarse)').matches)) return false;
+    return !!navigator.canShare({ files: [new File([new Blob([''], { type: 'image/png' })], 'a.png', { type: 'image/png' })] });
+  } catch (e) { return false; }
+}
+function exportRoute() {
+  if (dl) return 'claude';
+  if (shareTakesFiles()) return 'share';
+  if (navigator.standalone === true) return 'picture';
+  return 'download';
+}
+function showExportHint() {
+  var r = dl ? 'claude' : exportRoute();
+  if (r === 'share') say('Transparent pixels stay transparent in the file. Download opens the share sheet: choose Save to Files or Save Image.');
+  else if (r === 'picture') say('Transparent pixels stay transparent in the file. Download shows the picture: press and hold it to save.');
+}
+
+/* the picture shown for pressing and holding */
+var picUrl = null;
+function showPicture(blob, size) {
+  if (picUrl) URL.revokeObjectURL(picUrl);
+  picUrl = URL.createObjectURL(blob);
+  $('export-img').src = picUrl;
+  $('export-img').alt = 'Your ' + size + ' by ' + size + ' pixel picture';
+  $('export-pic').hidden = false;
+  return Promise.resolve('picture');
+}
+function hidePicture() {
+  $('export-pic').hidden = true;
+  $('export-img').removeAttribute('src');
+  if (picUrl) { URL.revokeObjectURL(picUrl); picUrl = null; }
+}
+$('export-close').addEventListener('click', hidePicture);
+
+/* Called straight from the tap, with nothing awaited before it: Safari only opens the share sheet while the tap is
+   still counted, which is why the PNG is built without waiting for toBlob. */
+function saveBlob(blob, filename, size) {
+  if (dl) return dl.save({ filename: filename, data: blob }).then(function () { return 'saved'; });
+  var route = exportRoute();
+  if (route === 'share') {
+    var file = new File([blob], filename, { type: 'image/png' });
+    return navigator.share({ files: [file], title: filename }).then(function () { return 'shared'; }, function (e) {
+      if (e && e.name === 'AbortError') return Promise.reject({ code: 'declined' });
+      return showPicture(blob, size); /* the share sheet would not open: show the picture instead */
+    });
+  }
+  if (route === 'picture') return showPicture(blob, size);
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
+  return Promise.resolve('saved');
 }
 
 function renderPng(size) {
@@ -1406,30 +1600,40 @@ function renderPng(size) {
   }
   return c;
 }
+/* the canvas as a PNG blob, at once (toBlob would make the share sheet wait for a callback) */
+function pngBlob(c) {
+  try {
+    var url = c.toDataURL('image/png'), bin = atob(url.slice(url.indexOf(',') + 1)), a = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return new Blob([a], { type: 'image/png' });
+  } catch (e) { return null; }
+}
 
-Array.prototype.forEach.call(document.querySelectorAll('[data-size]'), function (b) {
-  b.addEventListener('click', function () {
-    exportSize = parseInt(b.dataset.size, 10);
-    Array.prototype.forEach.call(document.querySelectorAll('[data-size]'), function (o) {
-      o.setAttribute('aria-pressed', o === b ? 'true' : 'false');
-    });
-  });
-});
-
+var exporting = false, exportingSince = 0;
+function exportDone() { exporting = false; }
 $('download').addEventListener('click', function () {
+  if (exporting && nowMs() - exportingSince < 30000) return; /* a share sheet or save step is still open */
   if (!dlReady) { say('Still connecting. Try again in a moment.'); return; }
-  var size = exportSize, name = 'pixel-sixteen-' + size + 'px.png';
-  renderPng(size).toBlob(function (blob) {
-    if (!blob) { say('Could not build the PNG. Try again.'); return; }
-    saveBlob(blob, name).then(function () {
-      say('Saved a ' + size + ' × ' + size + ' PNG.');
-    }, function (err) {
-      var code = err && err.code;
-      if (code === 'declined') say('Download canceled.');
-      else if (code === 'rate_limited') say('A save prompt is already open. Answer it, then try again.');
-      else say('The download did not go through. Try again.');
-    });
-  }, 'image/png');
+  var size = exportSize, name = 'pixel-sixteen-' + size + 'px.png', blob = pngBlob(renderPng(size));
+  if (!blob) { say('Could not build the PNG. Try again.'); return; }
+  var empty = true;
+  for (var i = 0; i < px.length; i++) if (px[i]) { empty = false; break; }
+  var dims = size + ' × ' + size;
+  exporting = true; exportingSince = nowMs();
+  hidePicture();
+  var p;
+  try { p = saveBlob(blob, name, size); } catch (e) { p = Promise.reject(e); }
+  p.then(function (how) {
+    var m = how === 'shared' ? 'Shared a ' + dims + ' PNG.'
+      : how === 'picture' ? 'Press and hold the picture below, then choose Save to Files or Add to Photos.'
+      : 'Saved a ' + dims + ' PNG.';
+    say(empty ? m + ' The board is empty, so it is fully transparent.' : m);
+  }, function (err) {
+    var code = err && err.code;
+    if (code === 'declined') say('Download canceled.');
+    else if (code === 'rate_limited') say('A save prompt is already open. Answer it, then try again.');
+    else say('The download did not go through. Try again.');
+  }).then(function () { setTimeout(exportDone, 600); }); /* a second tap straight away is not a second download */
 });
 
 /* ---------- clear board (two taps) ---------- */
@@ -1469,13 +1673,69 @@ document.addEventListener('keydown', function (e) {
   if (mod && k === 'y') { e.preventDefault(); stepHistory(false); return; }
   if (mod || e.altKey) return;
   if (KEYS[k]) setTool(KEYS[k]); else if (k === 'g') setGrid(!showGrid);
+  else if (k === 'm' && ref) setTool(tool === 'move' ? prevDraw : 'move');
 });
 
 /* ---------- trace image ---------- */
 var REF_IMG_KEY = 'pixel-sixteen-refimg-v1', REF_POS_KEY = 'pixel-sixteen-refpos-v1';
-var refSrc = '', refTimer = null;
+var refSrc = '', refTimer = null, refGen = 0;
 var refFile = $('ref-file'), refOp = $('ref-op'), refSize = $('ref-size');
-var REF_NOTE = 'The board is the crop frame. Use Move and Size to choose which part of the picture shows inside it. The image is not part of the PNG.';
+var REF_NOTE = 'The board is the crop frame. Use Move (in the toolbar above the board) and Size to choose which part of the picture shows inside it. The dropper picks colors from the picture. The image is not part of the PNG.';
+
+/* The picture itself is kept in IndexedDB, which has room for photos. localStorage holds only about 5 MB for the whole
+   site, and a big picture there could use it all up and stop the drawing itself from being saved. Its place, size and
+   opacity are tiny and stay in localStorage. If IndexedDB is not available, localStorage is used as before. */
+var IDB_NAME = 'pixel-sixteen', IDB_STORE = 'kv', idbP = null;
+function idb() {
+  if (idbP) return idbP;
+  idbP = new Promise(function (res, rej) {
+    try {
+      if (!window.indexedDB) { rej(new Error('no IndexedDB')); return; }
+      var rq = indexedDB.open(IDB_NAME, 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore(IDB_STORE); };
+      rq.onsuccess = function () { res(rq.result); };
+      rq.onerror = function () { rej(rq.error || new Error('IndexedDB error')); };
+      rq.onblocked = function () { rej(new Error('IndexedDB blocked')); };
+    } catch (e) { rej(e); }
+  });
+  return idbP;
+}
+function idbDo(mode, fn) {
+  return idb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var tx = db.transaction(IDB_STORE, mode), req = fn(tx.objectStore(IDB_STORE));
+      tx.oncomplete = function () { res(req ? req.result : undefined); };
+      tx.onerror = tx.onabort = function () { rej(tx.error || new Error('IndexedDB transaction failed')); };
+    });
+  });
+}
+function idbGet(k) { return idbDo('readonly', function (st) { return st.get(k); }); }
+function idbPut(k, v) { return idbDo('readwrite', function (st) { return st.put(v, k); }); }
+function idbDel(k) { return idbDo('readwrite', function (st) { return st.delete(k); }); }
+
+function refStoreGet() {
+  function legacy() { /* from before: kept in localStorage; it moves to IndexedDB now, which frees that space */
+    var v = null;
+    try { v = localStorage.getItem(REF_IMG_KEY); } catch (e) {}
+    if (v) idbPut(REF_IMG_KEY, v).then(function () { try { localStorage.removeItem(REF_IMG_KEY); } catch (e) {} }, function () {});
+    return v;
+  }
+  return idbGet(REF_IMG_KEY).then(function (v) { return typeof v === 'string' && v ? v : legacy(); }, legacy);
+}
+function refStorePut(src) {
+  return idbPut(REF_IMG_KEY, src).then(function () {
+    try { localStorage.removeItem(REF_IMG_KEY); } catch (e) {}
+  }, function () {
+    idbDel(REF_IMG_KEY).then(null, function () {}); /* never leave an older picture behind IndexedDB's back */
+    return new Promise(function (res, rej) {
+      try { localStorage.setItem(REF_IMG_KEY, src); res(); } catch (e) { rej(e); }
+    });
+  });
+}
+function refStoreDel() {
+  try { localStorage.removeItem(REF_IMG_KEY); } catch (e) {}
+  return idbDel(REF_IMG_KEY).then(null, function () {});
+}
 
 function refSay(msg) { $('ref-note').textContent = msg; }
 function refNatural() {
@@ -1494,11 +1754,13 @@ function placeRef(scale) {
 function syncRefUI() {
   var on = !!ref;
   $('ref-controls').hidden = !on;
+  $('t-move').hidden = !on;
   $('ref-add').textContent = on ? 'Replace image' : 'Add image';
-  if (!on) { if (tool === 'move') setTool(prevDraw); return; }
+  if (!on) { refRmDisarm(); if (tool === 'move') setTool(prevDraw); return; }
   refOp.value = Math.round(refOpacity * 100);
   refSize.value = Math.round(refScale / refFitScale(false) * 100);
   $('ref-eye').setAttribute('aria-pressed', refShow ? 'true' : 'false');
+  if (tool === 'drip') $('hint').textContent = toolHint('drip');
 }
 function saveRefPos() {
   clearTimeout(refTimer);
@@ -1510,32 +1772,40 @@ function saveRefPos() {
   }, 300);
 }
 function setRefFromData(src, fresh, pos) {
-  var img = new Image();
+  var gen = ++refGen, img = new Image();
   img.onload = function () {
+    if (gen !== refGen) return; /* another picture was chosen, or this one removed, in the meantime */
     ref = img; refSrc = src;
     if (pos) {
       refScale = pos.scale; refX = pos.x; refY = pos.y; refOpacity = pos.opacity; refShow = pos.show;
     } else {
       refOpacity = 0.5; refShow = true; placeRef(refFitScale(true));
     }
+    refRmDisarm();
     syncRefUI(); draw();
     if (fresh) {
       refSay(REF_NOTE);
-      try { localStorage.setItem(REF_IMG_KEY, src); } catch (e) { refSay('The image is shown, but it is too large to keep for next time.'); }
-      saveRefPos();
+      refStorePut(src).then(function () { if (gen === refGen) saveRefPos(); }, function () {
+        if (gen !== refGen) return;
+        /* it could not be kept: forget the old one too, so the next start never pairs an old picture with this one's place */
+        refStoreDel();
+        try { localStorage.removeItem(REF_POS_KEY); } catch (e) {}
+        refSay('The picture is shown, but it could not be kept for next time.');
+      });
     }
   };
-  img.onerror = function () { refSay('That image could not be opened.'); };
+  img.onerror = function () { if (gen === refGen) refSay('That image could not be opened.'); };
   img.src = src;
 }
 function loadRef() {
-  try {
-    var src = localStorage.getItem(REF_IMG_KEY);
-    if (!src) return;
-    var p = JSON.parse(localStorage.getItem(REF_POS_KEY) || 'null');
+  var gen = refGen;
+  refStoreGet().then(function (src) {
+    if (!src || gen !== refGen) return;
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem(REF_POS_KEY) || 'null'); } catch (e) {}
     var ok = p && isFinite(p.x) && isFinite(p.y) && isFinite(p.scale) && p.scale > 0 && isFinite(p.opacity);
     setRefFromData(src, false, ok ? { x: p.x, y: p.y, scale: p.scale, opacity: Math.min(1, Math.max(0.1, p.opacity)), show: p.show !== false } : null);
-  } catch (e) {}
+  }, function () {});
 }
 
 $('ref-add').addEventListener('click', function () { refFile.click(); });
@@ -1544,7 +1814,9 @@ refFile.addEventListener('change', function () {
   if (!f) return;
   var url = URL.createObjectURL(f), img = new Image();
   img.onload = function () {
-    var w = img.naturalWidth, h = img.naturalHeight, m = Math.min(1, 1024 / Math.max(w, h));
+    var w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) { URL.revokeObjectURL(url); refSay('That picture has no size the app can use. Try another one.'); return; }
+    var m = Math.min(1, 1024 / Math.max(w, h));
     var c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(w * m)); c.height = Math.max(1, Math.round(h * m));
     var x = c.getContext('2d');
@@ -1575,9 +1847,28 @@ $('ref-crop').addEventListener('click', function () {
   x.drawImage(ref, refX * k, refY * k, d[0] * refScale * k, d[1] * refScale * k);
   setRefFromData(encodeCanvas(c), true, { x: 0, y: 0, scale: S_PX / OUT, opacity: refOpacity, show: true });
 });
+/* removing the picture takes two taps, like Clear: its place and size took a while to set */
+var refRmTimer = null, refRmAt = 0;
+function refRmDisarm() {
+  clearTimeout(refRmTimer);
+  var b = $('ref-remove');
+  b.classList.remove('armed');
+  b.textContent = 'Remove image';
+}
 $('ref-remove').addEventListener('click', function () {
-  ref = null; refSrc = '';
-  try { localStorage.removeItem(REF_IMG_KEY); localStorage.removeItem(REF_POS_KEY); } catch (e) {}
+  var b = $('ref-remove');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed');
+    b.textContent = 'Tap again to remove';
+    refRmAt = nowMs();
+    refRmTimer = setTimeout(refRmDisarm, 3000);
+    return;
+  }
+  if (nowMs() - refRmAt < 350) return; /* an accidental double tap is not the confirmation */
+  refRmDisarm();
+  ref = null; refSrc = ''; refGen++;
+  refStoreDel();
+  try { localStorage.removeItem(REF_POS_KEY); } catch (e) {}
   refSay(REF_NOTE); syncRefUI(); draw();
 });
 loadRef();
@@ -1668,11 +1959,24 @@ function pixelize(maxColors, limit3) {
   var cv = document.createElement('canvas');
   cv.width = cv.height = W;
   var cx = cv.getContext('2d', { willReadFrequently: true });
-  cx.imageSmoothingEnabled = true;
-  cx.imageSmoothingQuality = 'high';
   var k = W / S_PX, dn = refNatural();
+  /* a small picture blown up (a sprite, say) keeps its hard pixels; smoothing it would invent in-between colors */
+  cx.imageSmoothingEnabled = refScale * k < 2;
+  cx.imageSmoothingQuality = 'high';
   cx.drawImage(ref, refX * k, refY * k, dn[0] * refScale * k, dn[1] * refScale * k);
   var data = cx.getImageData(0, 0, W, W).data;
+
+  /* which cells does the picture actually cover? (a cell is "outside" when less than half of it is under the picture) */
+  var CELL = S_PX / N, OUT = [], covN = 0, rx1 = refX + dn[0] * refScale, ry1 = refY + dn[1] * refScale;
+  for (y = 0; y < N; y++) {
+    for (x = 0; x < N; x++) {
+      var ox = Math.max(0, Math.min(rx1, (x + 1) * CELL) - Math.max(refX, x * CELL));
+      var oy = Math.max(0, Math.min(ry1, (y + 1) * CELL) - Math.max(refY, y * CELL));
+      OUT[y * N + x] = ox * oy < CELL * CELL / 2;
+      if (!OUT[y * N + x]) covN++;
+    }
+  }
+  if (!covN) return { px: new Array(N * N).fill(null), count: 0, why: 'outside' };
 
   /* 1. one dominant color per cell (mode, not average) */
   var T = [], R = [], G = [], B = [];
@@ -1695,47 +1999,118 @@ function pixelize(maxColors, limit3) {
     }
   }
 
-  /* 2. transparent background: alpha, black, or the flat color around the edge */
-  var tol = 40;
+  /* 2. transparent background. A picture that already has transparency keeps it. Otherwise the plain color around the
+        edge goes (black counts, in your sprites), and then a smooth gradient such as a sky, grown in from the corners. */
+  var tol = 40, STEP = 26, bgKind = 'none';
   function near(i2, c) {
     var a = R[i2] - c[0], b = G[i2] - c[1], e = B[i2] - c[2];
     return Math.sqrt(a * a + b * b + e * e) <= tol;
   }
-  var border = [];
+  function gap(p, q) {
+    var a = R[p] - R[q], b = G[p] - G[q], e = B[p] - B[q];
+    return Math.sqrt(a * a + b * b + e * e);
+  }
+  function around(p) {
+    var px0 = p % N, py0 = (p / N) | 0, nb = [];
+    if (px0 > 0) nb.push(p - 1);
+    if (px0 < N - 1) nb.push(p + 1);
+    if (py0 > 0) nb.push(p - N);
+    if (py0 < N - 1) nb.push(p + N);
+    return nb;
+  }
+  function kept() {
+    var n = 0, q;
+    for (q = 0; q < N * N; q++) { if (!T[q]) n++; }
+    return n;
+  }
+  /* the ring: the covered cells along the board edge, or along the edge of the picture when it does not fill the board */
+  var ring = [], ringClear = 0;
   for (i = 0; i < N * N; i++) {
+    if (OUT[i]) continue;
     x = i % N; y = (i / N) | 0;
-    if (x === 0 || y === 0 || x === N - 1 || y === N - 1) border.push(i);
-  }
-  var groups = [];
-  border.forEach(function (i2) {
-    if (T[i2]) return;
-    for (var g = 0; g < groups.length; g++) { if (near(i2, groups[g].c)) { groups[g].n++; return; } }
-    groups.push({ c: [R[i2], G[i2], B[i2]], n: 1 });
-  });
-  var top = null;
-  groups.forEach(function (g) { if (!top || g.n > top.n) top = g; });
-  var bgc = null, blackBg = false;
-  if (top) {
-    if (Math.max(top.c[0], top.c[1], top.c[2]) <= 12 && top.n >= 3) { bgc = top.c; blackBg = true; }
-    else if (top.n >= border.length * 0.4) bgc = top.c;
-  }
-  if (bgc) {
-    if (blackBg) {
-      for (i = 0; i < N * N; i++) { if (!T[i] && Math.max(R[i], G[i], B[i]) <= 12) T[i] = true; }
+    if (x === 0 || y === 0 || x === N - 1 || y === N - 1 || OUT[i - 1] || OUT[i + 1] || OUT[i - N] || OUT[i + N]) {
+      ring.push(i);
+      if (T[i]) ringClear++;
     }
-    var stack = [];
-    border.forEach(function (i2) {
-      if (T[i2]) stack.push(i2);
-      else if (near(i2, bgc)) { T[i2] = true; stack.push(i2); }
+  }
+  if (ringClear >= ring.length * 0.25) {
+    bgKind = 'alpha'; /* the picture brings its own transparency: that is the background */
+  } else {
+    var T0 = T.slice(), seeds = [];
+    var groups = [], top = null, bgc = null, blackBg = false;
+    ring.forEach(function (i2) {
+      if (T[i2]) return;
+      for (var g = 0; g < groups.length; g++) { if (near(i2, groups[g].c)) { groups[g].n++; return; } }
+      groups.push({ c: [R[i2], G[i2], B[i2]], n: 1 });
     });
-    while (stack.length) {
-      var p = stack.pop(), px0 = p % N, py0 = (p / N) | 0, nb = [];
-      if (px0 > 0) nb.push(p - 1);
-      if (px0 < N - 1) nb.push(p + 1);
-      if (py0 > 0) nb.push(p - N);
-      if (py0 < N - 1) nb.push(p + N);
-      nb.forEach(function (q) { if (!T[q] && near(q, bgc)) { T[q] = true; stack.push(q); } });
+    groups.forEach(function (g) { if (!top || g.n > top.n) top = g; });
+    if (top) {
+      if (Math.max(top.c[0], top.c[1], top.c[2]) <= 24 && top.n >= 3) { bgc = top.c; blackBg = true; }
+      else if (top.n >= ring.length * 0.4) bgc = top.c;
     }
+    if (bgc) {
+      if (blackBg) {
+        for (i = 0; i < N * N; i++) { if (!T[i] && Math.max(R[i], G[i], B[i]) <= 24) { T[i] = true; seeds.push(i); } }
+      }
+      var stack = [];
+      ring.forEach(function (i2) {
+        if (T[i2]) stack.push(i2);
+        else if (near(i2, bgc)) { T[i2] = true; stack.push(i2); seeds.push(i2); }
+      });
+      while (stack.length) {
+        var p = stack.pop();
+        around(p).forEach(function (q) { if (!T[q] && near(q, bgc)) { T[q] = true; stack.push(q); seeds.push(q); } });
+      }
+      if (kept() < 3) { T = T0.slice(); seeds = []; } /* all but a speck is one color: there is no background to tell apart */
+    }
+    /* a gradient (sky, studio backdrop) never matches one color; it changes only a little from one cell to the next */
+    var vis = [], grown = [];
+    function spread(st, got) {
+      while (st.length) {
+        var p = st.pop();
+        around(p).forEach(function (q) {
+          if (T[q] || vis[q] || gap(p, q) > STEP) return;
+          vis[q] = true; got.push(q); st.push(q);
+        });
+      }
+    }
+    spread(seeds.slice(), grown);
+    var bx0 = N, bx1 = -1, by0 = N, by1 = -1;
+    for (i = 0; i < N * N; i++) {
+      if (OUT[i]) continue;
+      x = i % N; y = (i / N) | 0;
+      if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y;
+    }
+    [by0 * N + bx0, by0 * N + bx1, by1 * N + bx0, by1 * N + bx1].forEach(function (s) {
+      if (T[s] || vis[s]) return;
+      vis[s] = true;
+      var comp = [s];
+      spread([s], comp);
+      if (comp.length >= 4) comp.forEach(function (q) { grown.push(q); });
+    });
+    /* a pocket of sky that the subject has cut off from the rest still touches the edge: it looks like the background, so it goes too */
+    function likeBg(q) {
+      var a, b;
+      for (a = 0; a < seeds.length; a++) { if (gap(q, seeds[a]) <= STEP) return true; }
+      for (b = 0; b < grown.length; b++) { if (gap(q, grown[b]) <= STEP) return true; }
+      return false;
+    }
+    if (seeds.length || grown.length) {
+      var more = true;
+      while (more) {
+        more = false;
+        ring.forEach(function (q) {
+          if (T[q] || vis[q] || !likeBg(q)) return;
+          vis[q] = true; grown.push(q); spread([q], grown); more = true;
+        });
+      }
+    }
+    if (grown.length) {
+      var T1 = T.slice();
+      grown.forEach(function (q) { T[q] = true; });
+      if (kept() < 3) T = T1; /* it would swallow the picture itself (a close-up, say): leave it */
+    }
+    for (i = 0; i < N * N; i++) { if (T[i] && !T0[i]) { bgKind = 'removed'; break; } }
   }
 
   /* 3. palette: merge near-duplicates, optional 3 shades per color, then the color cap */
@@ -1745,7 +2120,7 @@ function pixelize(maxColors, limit3) {
     fg.push(i);
     items.push({ lab: toLab(R[i], G[i], B[i]), w: 1 });
   }
-  if (!fg.length) return { px: new Array(N * N).fill(null), count: 0 };
+  if (!fg.length) return { px: new Array(N * N).fill(null), count: 0, why: 'empty' };
   var pal = clusterColors(items, 0.03);
 
   if (limit3) {
@@ -1760,7 +2135,11 @@ function pixelize(maxColors, limit3) {
       }
       fams.push({ h: h, list: [pc] });
     });
-    pal = neutral;
+    /* grays are a color too: three shades of gray. The ink and the paper stay on top of that, they are not shades of gray. */
+    var ends = [], mids = [];
+    neutral.forEach(function (pc) { (pc.lab[0] < 0.36 || pc.lab[0] >= 0.94 ? ends : mids).push(pc); });
+    wardReduce(mids, 3);
+    pal = ends.concat(mids);
     fams.forEach(function (f) { wardReduce(f.list, 3); pal = pal.concat(f.list); });
   }
   wardReduce(pal, maxColors);
@@ -1772,6 +2151,8 @@ function pixelize(maxColors, limit3) {
     if ((pc.lab[0] < 0.36 && c < 0.045) || Math.max(rgb[0], rgb[1], rgb[2]) <= 24) hex = INK;
     else if (c < 0.03 && pc.lab[0] >= 0.94) hex = PAPER;
     else hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
+    if (hex === '#FFFFFF') hex = PAPER; /* never pure white, however the color got there */
+    if (hex === '#000000') hex = INK;
     if (seen[hex]) return;
     seen[hex] = true;
     var rc = hexToRgb(hex);
@@ -1820,7 +2201,7 @@ function pixelize(maxColors, limit3) {
     res[i] = out[i] < 0 ? null : finalPal[out[i]].hex;
     if (res[i] && !used[res[i]]) { used[res[i]] = true; n++; }
   }
-  return { px: res, count: n };
+  return { px: res, count: n, bg: bgKind };
 }
 
 var pixColors = $('pix-colors'), pixLimit = $('pix-limit');
@@ -1844,18 +2225,37 @@ pixLimit.addEventListener('click', function () {
   pixLimit.setAttribute('aria-pressed', pixLimit.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
   pixShow(); pixSave();
 });
+/* on a portrait iPad the Pixelize button sits below the board: bring the result into view */
+function pixShowBoard() {
+  var r = $('board').getBoundingClientRect(), vh = window.innerHeight || document.documentElement.clientHeight;
+  if (r.top >= 0 && r.bottom <= vh) return;
+  var calm = false;
+  try { calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  try { document.querySelector('.stage').scrollIntoView({ block: 'start', behavior: calm ? 'auto' : 'smooth' }); }
+  catch (e) { document.querySelector('.stage').scrollIntoView(); }
+}
 $('pix-go').addEventListener('click', function () {
   if (!ref || stroke) return;
-  var res;
+  var res, note = $('pix-note');
   try { res = pixelize(+pixColors.value, pixLimit.getAttribute('aria-pressed') === 'true'); }
-  catch (e) { $('pix-note').textContent = 'Could not pixelize that image. Try a different one.'; return; }
-  var prev = snap();
+  catch (e) { note.textContent = 'Could not pixelize that image. Try a different one. Your board was not changed.'; return; }
+  if (!res.count) { /* nothing to put on the board: leave the drawing alone */
+    note.textContent = res.why === 'outside'
+      ? 'The picture is not over the board. Move or enlarge it first. Your board was not changed.'
+      : 'The part of the picture inside the board is fully transparent, so there is nothing to pixelize. Your board was not changed.';
+    return;
+  }
+  var prev = snap(), had = prev.some(function (c) { return c; });
   px = res.px;
   var changed = commit(prev);
   refShow = false;
   syncRefUI(); saveRefPos(); draw(); updateReadout(-1);
-  $('pix-note').textContent = !res.count ? 'Nothing was left after removing the background.' :
-    (changed ? 'Pixelized with ' + res.count + ' colors. The picture is hidden so you can see the result. Undo brings your drawing back.' : 'The board already matches this result.');
+  if (!changed) { note.textContent = 'The board already matches this result.'; return; }
+  note.textContent = 'Pixelized with ' + res.count + (res.count === 1 ? ' color. ' : ' colors. ') +
+    (res.bg === 'none' ? 'No plain background was found, so the whole picture was used. Erase what you do not want. ' : 'The background is transparent. ') +
+    'The picture is now hidden so you can see the result. ' + (had ? 'Undo brings your drawing back.' : 'Undo takes it back.');
+  flashHint('Pixelized with ' + res.count + (res.count === 1 ? ' color. ' : ' colors. ') + 'Undo takes it back.');
+  pixShowBoard();
 });
 
 /* ---------- start ---------- */
